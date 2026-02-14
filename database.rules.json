@@ -1,0 +1,26 @@
+{
+  "rules": {
+    ".read": true,
+    "leaderboard": {
+      ".indexOn": ["score"],
+      ".write": true,
+      "$entry": {
+        "name": {
+          ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length <= 24"
+        },
+        "score": {
+          ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 5000"
+        },
+        "durationMs": {
+          ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 180000"
+        },
+        "streak": {
+          ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 99"
+        },
+        "$other": {
+          ".validate": "$other === 'createdAt'"
+        }
+      }
+    }
+  }
+}
