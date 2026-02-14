@@ -3,6 +3,7 @@
 
 :root {
   --fipu-cyan: #50d2fe;
+  color-scheme: light;
 }
 
 * {
@@ -13,7 +14,7 @@ body {
   margin: 0;
   min-width: 320px;
   font-family: 'Manrope', 'Avenir Next', 'Trebuchet MS', sans-serif;
-  background: linear-gradient(150deg, #ffffff, #e9faff 52%, #d7f5ff);
+  background: #d4eeff;
   color: #0f172a;
 }
 
@@ -29,6 +30,14 @@ body {
   animation: impactShake 220ms ease;
 }
 
+.animate-option-correct {
+  animation: optionCorrectPulse 1000ms ease forwards;
+}
+
+.animate-option-wrong {
+  animation: optionWrongShake 1000ms ease forwards;
+}
+
 .animate-orbital {
   animation: orbital 16s ease-in-out infinite;
 }
@@ -39,6 +48,65 @@ body {
 
 .animate-scanline {
   animation: scanline 1.05s linear infinite;
+}
+
+.animate-name-reveal {
+  animation: nameReveal 520ms cubic-bezier(0.22, 0.9, 0.32, 1) both;
+}
+
+.confetti-piece {
+  position: absolute;
+  top: -8vh;
+  width: 12px;
+  height: 20px;
+  border-radius: 3px;
+  box-shadow: 0 1px 2px rgb(15 23 42 / 30%);
+  opacity: 0;
+  transform: rotate(0deg);
+  animation-name: confettiBurst;
+  animation-timing-function: cubic-bezier(0.22, 0.7, 0.2, 1);
+  animation-fill-mode: forwards;
+}
+
+.wrong-flash-screen {
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(circle at center, rgb(251 113 133 / 42%), rgb(251 113 133 / 0%) 62%),
+    rgb(225 29 72 / 16%);
+  animation: wrongFlash 520ms ease-out forwards;
+}
+
+.wrong-cross {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: min(42vw, 180px);
+  height: min(42vw, 180px);
+  transform: translate(-50%, -50%) scale(0.85);
+  opacity: 0;
+  animation: wrongCross 480ms ease-out forwards;
+}
+
+.wrong-cross::before,
+.wrong-cross::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 14%;
+  height: 100%;
+  border-radius: 999px;
+  background: rgb(244 63 94 / 92%);
+  box-shadow: 0 0 14px rgb(190 18 60 / 55%);
+}
+
+.wrong-cross::before {
+  transform: translate(-50%, -50%) rotate(45deg);
+}
+
+.wrong-cross::after {
+  transform: translate(-50%, -50%) rotate(-45deg);
 }
 
 .vision-flash-enter-active,
@@ -82,6 +150,54 @@ body {
   }
 }
 
+@keyframes optionCorrectPulse {
+  0% {
+    background-color: rgb(236 253 245);
+    border-color: rgb(16 185 129);
+    color: rgb(6 95 70);
+    transform: translateX(0) scale(1);
+  }
+  35% {
+    background-color: rgb(16 185 129);
+    border-color: rgb(5 150 105);
+    color: rgb(236 253 245);
+    transform: translateX(0) scale(1.02);
+  }
+  100% {
+    background-color: rgb(236 253 245);
+    border-color: rgb(16 185 129);
+    color: rgb(6 95 70);
+    transform: translateX(0) scale(1);
+  }
+}
+
+@keyframes optionWrongShake {
+  0% {
+    background-color: rgb(255 241 242);
+    border-color: rgb(244 63 94);
+    color: rgb(136 19 55);
+    transform: translateX(0);
+  }
+  18% {
+    transform: translateX(-10px);
+  }
+  36% {
+    transform: translateX(10px);
+  }
+  54% {
+    transform: translateX(-8px);
+  }
+  72% {
+    transform: translateX(8px);
+  }
+  100% {
+    background-color: rgb(255 241 242);
+    border-color: rgb(244 63 94);
+    color: rgb(136 19 55);
+    transform: translateX(0);
+  }
+}
+
 @keyframes orbital {
   0% {
     transform: translate(0, 0) scale(1);
@@ -108,5 +224,56 @@ body {
   100% {
     transform: translateX(250%);
     opacity: 0.1;
+  }
+}
+
+@keyframes nameReveal {
+  0% {
+    opacity: 0;
+    transform: translateY(12px) scale(0.95);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes confettiBurst {
+  0% {
+    opacity: 0;
+    transform: translate3d(0, 0, 0) rotate(0deg) scale(0.72);
+  }
+  12% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: translate3d(var(--confetti-drift), 118vh, 0) rotate(600deg) scale(1);
+  }
+}
+
+@keyframes wrongFlash {
+  0% {
+    opacity: 0;
+  }
+  18% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
+@keyframes wrongCross {
+  0% {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(0.82);
+  }
+  35% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(1.06);
   }
 }

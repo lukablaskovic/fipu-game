@@ -1,28 +1,9 @@
-const adjectives = [
-  "Brzi",
-  "Pametni",
-  "Tihi",
-  "Veseli",
-  "Ludi",
-  "Mocni",
-  "Hrabri",
-  "Sretni",
-];
-
-const nouns = [
-  "Robot",
-  "Algoritam",
-  "Coder",
-  "Pixel",
-  "Server",
-  "Gamer",
-  "Haker",
-  "Model",
-];
-
-const randomItem = (items) => items[Math.floor(Math.random() * items.length)];
+import generateRandomUsername from "generate-random-username";
 
 export const generateRandomNickname = () => {
-  const number = Math.floor(Math.random() * 900 + 100);
-  return `${randomItem(adjectives)}${randomItem(nouns)}${number}`;
+  return generateRandomUsername({
+    separator: "_",
+    digits: 0,
+    capitalize: false,
+  });
 };
