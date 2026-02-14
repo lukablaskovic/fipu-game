@@ -2,6 +2,7 @@
 import { computed, onBeforeUnmount, onMounted, ref } from "vue";
 import { aiTrainFrames, aiTrainLabels } from "./data/aiTrainImages";
 import { fetchTopScores, submitScore } from "./services/leaderboard";
+import { submitInterestEmail } from "./services/leads";
 import { generateRandomNickname } from "./utils/randomNickname";
 
 const gameTypes = [
@@ -33,14 +34,14 @@ const aiConfigs = {
     totalRounds: 20,
     roundDurationMs: 3000,
     optionCount: 4,
-    feedbackMs: 1000,
+    feedbackMs: 520,
     label: "Easy",
   },
   hard: {
     totalRounds: 20,
     roundDurationMs: 1500,
     optionCount: 4,
-    feedbackMs: 1000,
+    feedbackMs: 420,
     label: "Hard",
   },
 };
@@ -89,8 +90,12 @@ const aiOutroPage = ref(0);
 const aiOutroTouchStartX = ref(0);
 const aiOutroTouchDeltaX = ref(0);
 const aiOutroTotalPages = 4;
+const outroEmail = ref("");
+const outroEmailStatus = ref("idle");
 const isStartCountdownVisible = ref(false);
 const startCountdownText = ref("");
+const isGameOverCelebrationVisible = ref(false);
+const gameOverCelebrationToken = ref(0);
 
 const activeAiConfig = computed(() => aiConfigs[activeDifficulty.value]);
 const selectedAiConfig = computed(() => aiConfigs[selectedDifficulty.value]);
@@ -135,6 +140,9 @@ const areOptionButtonsDisabled = computed(
     frameTimeLeftMs.value <= 0 ||
     Boolean(feedback.value),
 );
+const isGameRunning = computed(() =>
+  ["ai-playing", "it-playing", "quiz-playing"].includes(phase.value),
+);
 
 const currentPlayerName = computed(() => {
   const cleaned = nickname.value.trim().replace(/\s+/g, " ");
@@ -160,6 +168,16 @@ const finalLine = computed(
   () =>
     `Your data trained the AI to ${modelAccuracy.value}%. Imagine building real AI here.`,
 );
+const outroEmailStatusText = computed(() => {
+  if (outroEmailStatus.value === "saving") return "Spremam email...";
+  if (outroEmailStatus.value === "saved")
+    return "Hvala! Poslat ćemo ti više detalja.";
+  if (outroEmailStatus.value === "invalid")
+    return "Upiši ispravnu email adresu ili stisni Zatvori.";
+  if (outroEmailStatus.value === "error")
+    return "Spremanje nije uspjelo. Pokušaj ponovno.";
+  return "";
+});
 
 let roundTimeoutId = 0;
 let frameTickId = 0;
@@ -173,6 +191,7 @@ let startCountdownFinishId = 0;
 let hitEffectTimeoutId = 0;
 let autoNameRevealPauseId = 0;
 let autoNameRevealFinishId = 0;
+let gameOverCelebrationTimeoutId = 0;
 let roundResolved = false;
 
 const syncFrameTimeLeft = () => {
@@ -213,6 +232,7 @@ const clearTimers = () => {
   window.clearTimeout(hitEffectTimeoutId);
   window.clearTimeout(autoNameRevealPauseId);
   window.clearTimeout(autoNameRevealFinishId);
+  window.clearTimeout(gameOverCelebrationTimeoutId);
 
   roundTimeoutId = 0;
   frameTickId = 0;
@@ -224,11 +244,13 @@ const clearTimers = () => {
   hitEffectTimeoutId = 0;
   autoNameRevealPauseId = 0;
   autoNameRevealFinishId = 0;
+  gameOverCelebrationTimeoutId = 0;
   roundDeadlineMs = 0;
   sessionDeadlineMs = 0;
   isStartCountdownVisible.value = false;
   startCountdownText.value = "";
   hitEffect.value = "";
+  isGameOverCelebrationVisible.value = false;
   isAutoNameRevealVisible.value = false;
   autoNameRevealShowName.value = false;
   autoNameRevealName.value = "";
@@ -332,10 +354,22 @@ const resetAiSession = () => {
 };
 
 const finishAiTraining = async () => {
+  if (phase.value === "ai-finished") {
+    return;
+  }
+
   clearTimers();
   aiOutroPage.value = 0;
+  outroEmail.value = "";
+  outroEmailStatus.value = "idle";
   phase.value = "ai-finished";
   sessionDurationMs.value = Math.max(0, Date.now() - sessionStartMs.value);
+  isGameOverCelebrationVisible.value = true;
+  gameOverCelebrationToken.value += 1;
+  gameOverCelebrationTimeoutId = window.setTimeout(() => {
+    isGameOverCelebrationVisible.value = false;
+    gameOverCelebrationTimeoutId = 0;
+  }, 2000);
   saveStatus.value = "saving";
 
   try {
@@ -356,12 +390,21 @@ const finishAiTraining = async () => {
 };
 
 const scheduleNextRound = () => {
-  if (samplesSeen.value >= totalRounds.value || sessionTimeLeftMs.value <= 0) {
-    void finishAiTraining();
-    return;
-  }
+  window.clearTimeout(feedbackTimeoutId);
+  feedbackTimeoutId = window.setTimeout(() => {
+    feedbackTimeoutId = 0;
 
-  startRound();
+    if (phase.value !== "ai-playing") {
+      return;
+    }
+
+    if (samplesSeen.value >= totalRounds.value || sessionTimeLeftMs.value <= 0) {
+      void finishAiTraining();
+      return;
+    }
+
+    startRound();
+  }, activeAiConfig.value.feedbackMs);
 };
 
 const confettiPieces = Array.from({ length: 32 }, (_, index) => index);
@@ -441,6 +484,8 @@ const startRound = () => {
   }
 
   roundResolved = false;
+  window.clearTimeout(feedbackTimeoutId);
+  feedbackTimeoutId = 0;
   window.clearTimeout(roundTimeoutId);
   window.clearInterval(frameTickId);
 
@@ -651,6 +696,35 @@ const onAiOutroTouchEnd = () => {
   if (aiOutroTouchDeltaX.value >= threshold) prevAiOutroPage();
   aiOutroTouchStartX.value = 0;
   aiOutroTouchDeltaX.value = 0;
+};
+
+const submitOutroEmail = async () => {
+  const normalizedEmail = outroEmail.value.trim().toLowerCase();
+  const isValid = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/i.test(normalizedEmail);
+
+  if (!isValid) {
+    outroEmailStatus.value = "invalid";
+    return;
+  }
+
+  outroEmailStatus.value = "saving";
+
+  try {
+    await submitInterestEmail({
+      email: normalizedEmail,
+      source: "ai-quiz-outro",
+    });
+    outroEmailStatus.value = "saved";
+    outroEmail.value = "";
+  } catch {
+    outroEmailStatus.value = "error";
+  }
+};
+
+const closeAiOutro = () => {
+  outroEmail.value = "";
+  outroEmailStatus.value = "idle";
+  openHome();
 };
 
 const startSelectedGame = () => {
@@ -1043,7 +1117,7 @@ onBeforeUnmount(() => {
           </div>
 
           <div
-            class="overflow-hidden rounded-3xl border border-cyan-300/80 bg-white/90 shadow-[0_22px_58px_rgba(80,210,254,0.18)] backdrop-blur"
+            class="relative overflow-hidden rounded-3xl border border-cyan-300/80 bg-white/90 shadow-[0_22px_58px_rgba(80,210,254,0.18)] backdrop-blur"
             :class="
               hitEffect === 'wrong'
                 ? 'animate-impact ring-2 ring-rose-400/80'
@@ -1101,11 +1175,28 @@ onBeforeUnmount(() => {
                 </button>
               </div>
             </div>
+
+            <section
+              v-if="hitEffect"
+              :key="`hit-effect-${hitEffectToken}`"
+              class="pointer-events-none absolute inset-0 z-20 overflow-hidden">
+              <template v-if="hitEffect === 'correct'">
+                <span
+                  v-for="piece in confettiPieces"
+                  :key="`confetti-${hitEffectToken}-${piece}`"
+                  class="confetti-piece"
+                  :style="confettiPieceStyle(piece)" />
+              </template>
+              <template v-else>
+                <div class="wrong-flash-screen" />
+                <div class="wrong-cross" />
+              </template>
+            </section>
           </div>
         </section>
 
         <section
-          v-else-if="phase === 'ai-finished'"
+          v-else-if="phase === 'ai-finished' && !isGameOverCelebrationVisible"
           key="ai-finished"
           class="mx-auto w-full max-w-md">
           <article
@@ -1119,80 +1210,16 @@ onBeforeUnmount(() => {
                 class="flex transition-transform duration-300 ease-out"
                 :style="{ transform: `translateX(-${aiOutroPage * 100}%)` }">
                 <section class="w-full shrink-0 p-4 sm:p-5">
-                  <p
-                    class="inline-flex items-center rounded-full bg-cyan-100 px-3 py-1 text-xs font-semibold uppercase tracking-[0.2em] text-cyan-800">
-                    Treniranje gotovo
-                  </p>
-                  <h2
-                    class="mt-4 font-title text-2xl font-bold text-slate-900 md:text-3xl">
-                    {{ currentPlayerName }}, odlično.
-                  </h2>
-
-                  <p
-                    class="mt-4 rounded-2xl border border-cyan-300 bg-cyan-100 p-4 font-title text-xl font-bold leading-tight text-cyan-900">
-                    {{ finalLine }}
-                  </p>
-
-                  <dl class="mt-5 grid gap-3 sm:grid-cols-3">
-                    <div
-                      class="rounded-2xl border border-cyan-200 bg-cyan-50 p-3">
-                      <dt
-                        class="text-xs uppercase tracking-[0.14em] text-cyan-800">
-                        Točnost
-                      </dt>
-                      <dd class="font-title text-2xl font-bold text-cyan-900">
-                        {{ modelAccuracy }}%
-                      </dd>
-                    </div>
-                    <div
-                      class="rounded-2xl border border-cyan-200 bg-cyan-50 p-3">
-                      <dt
-                        class="text-xs uppercase tracking-[0.14em] text-cyan-800">
-                        Točni odgovori
-                      </dt>
-                      <dd class="font-title text-2xl font-bold text-cyan-900">
-                        {{ correctCount }}/{{ totalRounds }}
-                      </dd>
-                    </div>
-                    <div
-                      class="rounded-2xl border border-cyan-200 bg-cyan-50 p-3">
-                      <dt
-                        class="text-xs uppercase tracking-[0.14em] text-cyan-800">
-                        Najbolji streak
-                      </dt>
-                      <dd class="font-title text-2xl font-bold text-cyan-900">
-                        {{ bestStreak }}
-                      </dd>
-                    </div>
-                  </dl>
-
-                  <p class="mt-4 text-sm text-cyan-900">
-                    {{
-                      saveStatus === "saving"
-                        ? "Spremam rezultat..."
-                        : saveStatus === "saved"
-                          ? "Rezultat spremljen."
-                          : saveStatus === "error"
-                            ? "Cloud spremanje nije uspjelo. Local fallback radi."
-                            : ""
-                    }}
-                  </p>
-                  <p
-                    class="mt-2 text-xs uppercase tracking-[0.16em] text-cyan-700">
-                    Trajanje: {{ Math.round(sessionDurationMs / 1000) }}s
-                  </p>
-
-                  <button
-                    type="button"
-                    class="cursor-pointer mt-4 w-full rounded-2xl bg-[#50d2fe] px-5 py-3 font-title text-base font-bold uppercase tracking-[0.12em] text-slate-950 transition hover:-translate-y-0.5 hover:bg-cyan-200"
-                    @click="nextAiOutroPage">
-                    Dalje
-                  </button>
-                </section>
-
-                <section class="w-full shrink-0 p-4 sm:p-5">
+                  <h3
+                    class="text-center font-title text-xl font-bold text-cyan-900">
+                    Problem klasifikacije
+                  </h3>
+                  <img
+                    src="/classify.png"
+                    alt="Klasifikacija"
+                    class="mx-auto mt-3 h-36 w-full max-w-xs rounded-2xl object-contain sm:h-40" />
                   <div
-                    class="rounded-2xl border border-cyan-200 bg-cyan-50/75 p-4 text-sm leading-relaxed text-slate-700">
+                    class="mt-4 rounded-2xl border border-cyan-200 bg-cyan-50/75 p-4 text-sm leading-relaxed text-slate-700">
                     <p>
                       Ovaj problem u svijetu umjetne inteligencije zove se
                       problem klasifikacije - dodjeljivanje ispravne labele
@@ -1208,8 +1235,12 @@ onBeforeUnmount(() => {
                 </section>
 
                 <section class="w-full shrink-0 p-4 sm:p-5">
+                  <img
+                    src="/robot-wave-gif.gif"
+                    alt="Robot"
+                    class="mx-auto h-44 w-full max-w-xs rounded-2xl object-contain sm:h-48" />
                   <div
-                    class="rounded-2xl border border-cyan-200 bg-cyan-50/75 p-4 text-sm leading-relaxed text-slate-700">
+                    class="mt-4 rounded-2xl border border-cyan-200 bg-cyan-50/75 p-4 text-sm leading-relaxed text-slate-700">
                     <p>
                       Ti si sada klasificirao/la ukupno {{ totalRounds }} slika,
                       od toga uspješno
@@ -1234,8 +1265,12 @@ onBeforeUnmount(() => {
                 </section>
 
                 <section class="w-full shrink-0 p-4 sm:p-5">
+                  <img
+                    src="/ai-learn-gif.gif"
+                    alt="AI učenje"
+                    class="mx-auto h-52 w-full max-w-xs rounded-2xl object-contain sm:h-56" />
                   <div
-                    class="rounded-2xl border border-cyan-200 bg-cyan-50/75 p-4 text-sm leading-relaxed text-slate-700">
+                    class="mt-4 rounded-2xl border border-cyan-200 bg-cyan-50/75 p-4 text-sm leading-relaxed text-slate-700">
                     <p>
                       Ipak, umjetnoj inteligenciji treba malo više primjera.
                       Njoj nije dovoljno da vidi 10tak auti, niti 20... Već na
@@ -1245,19 +1280,75 @@ onBeforeUnmount(() => {
                       primjer klasifikacije slika!
                     </p>
                   </div>
+                  <button
+                    type="button"
+                    class="cursor-pointer mt-4 w-full rounded-2xl bg-[#50d2fe] px-5 py-3 font-title text-base font-bold uppercase tracking-[0.12em] text-slate-950 transition hover:-translate-y-0.5 hover:bg-cyan-200"
+                    @click="nextAiOutroPage">
+                    Dalje
+                  </button>
+                </section>
+
+                <section class="w-full shrink-0 p-4 sm:p-5">
+                  <img
+                    src="/fipu_student_diploma.gif"
+                    alt="FIPU student diploma"
+                    class="mx-auto h-52 w-full max-w-xs rounded-2xl object-contain sm:h-56" />
+                  <div
+                    class="mt-4 rounded-2xl border border-cyan-200 bg-cyan-50/75 p-4 text-sm leading-relaxed text-slate-700">
+                    <h3 class="font-title text-xl font-bold text-cyan-900">
+                      Studiraj na FIPU
+                    </h3>
+                    <p class="mt-2">
+                      Želiš naučiti više? Zanima te AI? Sviđa ti se ova
+                      interaktivna igrica?
+                    </p>
+                    <p class="mt-2">
+                      Naši studenti završetkom studija samostalno izrađuju
+                      ovakve aplikacije, treniraju svoje AI modele, uspješno
+                      rade interaktivne video igrice, modernim Blockchain
+                      tehnologijama i mnogo toga drugog.
+                    </p>
+                    <p class="mt-2">
+                      Ako želiš saznati više, ostavi nam ispod tvoju e-mail
+                      adresu i poslat ćemo ti mail s više detalja. Bez brige,
+                      nećemo spammati!
+                    </p>
+                  </div>
+
+                  <label
+                    for="outro-email"
+                    class="mt-4 block text-xs font-semibold uppercase tracking-[0.16em] text-cyan-800">
+                    Email (opcionalno)
+                  </label>
+                  <input
+                    id="outro-email"
+                    v-model="outroEmail"
+                    type="email"
+                    inputmode="email"
+                    autocomplete="email"
+                    placeholder="npr. ime.prezime@gmail.com"
+                    class="mt-2 w-full rounded-xl border border-cyan-300 bg-white px-3 py-2 text-base text-slate-900 outline-none transition focus:border-cyan-500 focus:ring-2 focus:ring-cyan-300/45 md:text-sm"
+                    @keyup.enter="submitOutroEmail" />
+
+                  <p
+                    v-if="outroEmailStatusText"
+                    class="mt-2 text-sm text-cyan-900">
+                    {{ outroEmailStatusText }}
+                  </p>
 
                   <div class="mt-4 flex flex-wrap gap-3">
                     <button
                       type="button"
-                      class="cursor-pointer flex-1 rounded-2xl bg-[#50d2fe] px-5 py-3 font-title text-base font-bold uppercase tracking-[0.12em] text-slate-950 transition hover:-translate-y-0.5 hover:bg-cyan-200"
-                      @click="startSelectedGame">
-                      Treniraj ponovno
+                      class="cursor-pointer flex-1 rounded-2xl bg-[#50d2fe] px-5 py-3 font-title text-base font-bold uppercase tracking-[0.12em] text-slate-950 transition hover:-translate-y-0.5 hover:bg-cyan-200 disabled:cursor-not-allowed disabled:opacity-75"
+                      :disabled="outroEmailStatus === 'saving'"
+                      @click="submitOutroEmail">
+                      Pošalji email
                     </button>
                     <button
                       type="button"
                       class="cursor-pointer flex-1 rounded-2xl border border-cyan-400/70 bg-white px-5 py-3 text-sm font-semibold uppercase tracking-[0.12em] text-cyan-800 transition hover:bg-cyan-100/75"
-                      @click="openHome">
-                      Natrag na odabir
+                      @click="closeAiOutro">
+                      Zatvori
                     </button>
                   </div>
                 </section>
@@ -1387,24 +1478,26 @@ onBeforeUnmount(() => {
         </p>
       </section>
 
-      <section
-        v-if="hitEffect"
-        :key="`hit-effect-${hitEffectToken}`"
-        class="pointer-events-none fixed inset-0 z-50 overflow-hidden">
-        <template v-if="hitEffect === 'correct'">
+      <Teleport to="body">
+        <section
+          v-if="phase === 'ai-finished' && isGameOverCelebrationVisible"
+          :key="`game-over-celebration-${gameOverCelebrationToken}`"
+          class="pointer-events-none fixed inset-0 z-50 flex items-center justify-center overflow-hidden bg-cyan-950/60 backdrop-blur-sm">
+          <img
+            src="/success.gif"
+            alt="Uspjeh"
+            class="h-64 w-64 max-w-[80vw] rounded-3xl object-contain sm:h-72 sm:w-72" />
           <span
             v-for="piece in confettiPieces"
-            :key="`confetti-${hitEffectToken}-${piece}`"
+            :key="`game-over-confetti-${gameOverCelebrationToken}-${piece}`"
             class="confetti-piece"
             :style="confettiPieceStyle(piece)" />
-        </template>
-        <template v-else>
-          <div class="wrong-flash-screen" />
-          <div class="wrong-cross" />
-        </template>
-      </section>
+        </section>
+
+      </Teleport>
 
       <footer
+        v-if="!isGameRunning"
         class="relative left-1/2 mt-auto w-screen -translate-x-1/2 bg-white pt-6 pb-4 md:pt-2 md:pb-2">
         <div
           class="pointer-events-none absolute inset-x-0 -top-8 h-8 bg-gradient-to-b from-transparent to-white" />

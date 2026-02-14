@@ -21,6 +21,20 @@
           ".validate": "$other === 'createdAt'"
         }
       }
+    },
+    "interestEmails": {
+      ".write": true,
+      "$entry": {
+        "email": {
+          ".validate": "newData.isString() && newData.val().matches(/^[^\\s@]+@[^\\s@]+\\.[^\\s@]{2,}$/)"
+        },
+        "source": {
+          ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length <= 40"
+        },
+        "$other": {
+          ".validate": "$other === 'createdAt'"
+        }
+      }
     }
   }
 }
