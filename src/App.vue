@@ -260,6 +260,11 @@ const openHome = () => {
   phase.value = "home";
 };
 
+const openLeaderboard = async () => {
+  phase.value = "leaderboard";
+  await refreshLeaderboard();
+};
+
 const openAiIntro = () => {
   aiIntroPage.value = 0;
   phase.value = "ai-intro";
@@ -347,27 +352,27 @@ onBeforeUnmount(() => {
 <template>
   <main class="relative min-h-screen overflow-hidden bg-sky-50 text-slate-900">
     <div
-      class="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_10%_14%,rgba(80,210,254,0.45),transparent_35%),radial-gradient(circle_at_82%_22%,rgba(191,241,255,0.85),transparent_42%),linear-gradient(132deg,#ffffff,#e9faff_50%,#d7f5ff)]" />
+      class="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_24%_70%,rgba(80,210,254,0.24),transparent_36%),radial-gradient(circle_at_82%_78%,rgba(191,241,255,0.55),transparent_40%),linear-gradient(180deg,#ffffff_0%,#ffffff_50%,#eefbff_68%,#d7f5ff_100%)]" />
     <div
-      class="pointer-events-none absolute -left-28 top-4 h-80 w-80 rounded-full bg-cyan-300/45 blur-3xl animate-orbital" />
+      class="pointer-events-none absolute -left-28 top-4 hidden h-80 w-80 rounded-full bg-cyan-300/45 blur-3xl animate-orbital md:block" />
     <div
       class="pointer-events-none absolute -right-20 bottom-8 h-72 w-72 rounded-full bg-sky-200/50 blur-3xl animate-orbital-delayed" />
 
     <section
       class="relative z-10 mx-auto flex min-h-screen w-full max-w-6xl flex-col px-4 pb-0 pt-5 md:px-8 md:pb-8">
       <header
-        class="mb-5 flex flex-col items-center justify-center gap-2 rounded-3xl border border-cyan-200/60 bg-white/75 p-2 shadow-[0_10px_36px_rgba(80,210,254,0.22)] backdrop-blur">
+        class="mb-4 flex h-32 flex-col items-center justify-center p-0 md:mb-3 md:mx-auto md:h-36 md:w-[88%] lg:h-40 lg:w-[82%]">
         <img
           src="/fipu-games-logo.png"
           alt="FIPU Games logo"
-          class="h-auto w-full object-contain" />
+          class="h-full w-full object-contain" />
       </header>
 
       <Transition name="page-swap" mode="out-in">
         <section
           v-if="phase === 'home'"
           key="home"
-          class="mx-auto w-full max-w-3xl">
+          class="mx-auto mb-6 w-full max-w-3xl md:mb-8">
         <article
           class="rounded-3xl border border-cyan-200/70 bg-white/90 p-5 shadow-[0_18px_50px_rgba(80,210,254,0.18)] backdrop-blur md:p-6">
           <div
@@ -450,41 +455,57 @@ onBeforeUnmount(() => {
             Započni igru
           </button>
 
-          <div
-            v-if="selectedGameType !== 'it'"
-            class="mt-6 rounded-2xl border border-cyan-200/70 bg-white/90 p-4 shadow-[0_14px_40px_rgba(80,210,254,0.16)] md:p-5">
-            <div class="flex items-center justify-between">
-              <h2 class="font-title text-xl font-bold text-cyan-900">
-                Leaderboard
-              </h2>
-              <span class="text-xs uppercase tracking-[0.14em] text-cyan-700"
-                >{{ leaderboard.length }} listed</span
-              >
-            </div>
+          <button
+            type="button"
+            class="cursor-pointer mt-3 mb-5 w-full rounded-2xl border border-cyan-500 bg-white px-5 py-3 text-center font-title text-base font-bold uppercase tracking-[0.12em] text-cyan-900 transition hover:bg-cyan-50"
+            @click="openLeaderboard">
+            Leaderboard
+          </button>
+        </article>
+        </section>
 
-            <p v-if="leaderboardLoading" class="mt-4 text-sm text-cyan-800">
-              Loading models...
-            </p>
-            <p
-              v-else-if="leaderboard.length === 0"
-              class="mt-4 text-sm text-cyan-800">
-              Još nema rezultata.
-            </p>
-
-            <ol v-else class="mt-4 space-y-2">
-              <li
-                v-for="(entry, index) in leaderboard"
-                :key="`${entry.name}-${entry.createdAt}-${index}`"
-                class="flex items-center justify-between rounded-xl border border-cyan-200 bg-cyan-50/80 px-3 py-2">
-                <span class="text-sm font-semibold text-slate-800"
-                  >{{ index + 1 }}. {{ entry.name }}</span
-                >
-                <span class="font-title text-lg font-bold text-cyan-800"
-                  >{{ entry.score }}%</span
-                >
-              </li>
-            </ol>
+        <section
+          v-else-if="phase === 'leaderboard'"
+          key="leaderboard"
+          class="mx-auto w-full max-w-3xl">
+        <article
+          class="rounded-3xl border border-cyan-200/70 bg-white/90 p-4 shadow-[0_14px_40px_rgba(80,210,254,0.16)] md:p-5">
+          <div class="flex items-center justify-between">
+            <h2 class="font-title text-xl font-bold text-cyan-900">
+              Leaderboard
+            </h2>
+            <span class="text-xs uppercase tracking-[0.14em] text-cyan-700"
+              >{{ leaderboard.length }} listed</span
+            >
           </div>
+
+          <p v-if="leaderboardLoading" class="mt-4 text-sm text-cyan-800">
+            Loading models...
+          </p>
+          <p v-else-if="leaderboard.length === 0" class="mt-4 text-sm text-cyan-800">
+            Još nema rezultata.
+          </p>
+
+          <ol v-else class="mt-4 space-y-2">
+            <li
+              v-for="(entry, index) in leaderboard"
+              :key="`${entry.name}-${entry.createdAt}-${index}`"
+              class="flex items-center justify-between rounded-xl border border-cyan-200 bg-cyan-50/80 px-3 py-2">
+              <span class="text-sm font-semibold text-slate-800"
+                >{{ index + 1 }}. {{ entry.name }}</span
+              >
+              <span class="font-title text-lg font-bold text-cyan-800"
+                >{{ entry.score }}%</span
+              >
+            </li>
+          </ol>
+
+          <button
+            type="button"
+            class="cursor-pointer mt-6 rounded-2xl bg-[#50d2fe] px-5 py-3 font-title text-base font-bold uppercase tracking-[0.12em] text-slate-950 transition hover:-translate-y-0.5 hover:bg-cyan-200"
+            @click="openHome">
+            Natrag na odabir
+          </button>
         </article>
         </section>
 
@@ -892,26 +913,26 @@ onBeforeUnmount(() => {
       </section>
 
       <footer
-        class="relative left-1/2 mt-6 w-screen -translate-x-1/2 bg-white pt-6 pb-4">
+        class="relative left-1/2 mt-auto w-screen -translate-x-1/2 bg-white pt-6 pb-4 md:pt-2 md:pb-2">
         <div
           class="pointer-events-none absolute inset-x-0 -top-8 h-8 bg-gradient-to-b from-transparent to-white" />
         <img
           src="/fipu-unipu-logo.png"
           alt="FIPU UNIPU logo"
-          class="mx-auto h-auto w-full max-w-5xl object-contain px-4" />
-        <div class="mt-3 flex flex-col items-center justify-center gap-1 px-4">
+          class="mx-auto h-auto w-full max-w-5xl object-contain px-4 md:w-auto md:max-w-md md:max-h-16 md:px-0" />
+        <div class="mt-3 flex flex-col items-center justify-center gap-1 px-4 md:mt-2">
           <a
             href="https://www.unipu.hr/"
             target="_blank"
             rel="noopener noreferrer"
-            class="cursor-pointer text-center text-base font-medium text-cyan-900 underline decoration-cyan-500 underline-offset-4 hover:text-cyan-700 md:text-lg">
+            class="cursor-pointer text-center text-base font-medium text-cyan-900 underline decoration-cyan-500 underline-offset-4 hover:text-cyan-700 md:text-base">
             Sveučilište Jurja Dobrile u Puli
           </a>
           <a
             href="https://fipu.unipu.hr/"
             target="_blank"
             rel="noopener noreferrer"
-            class="cursor-pointer text-center text-base font-medium text-cyan-900 underline decoration-cyan-500 underline-offset-4 hover:text-cyan-700 md:text-lg">
+            class="cursor-pointer text-center text-base font-medium text-cyan-900 underline decoration-cyan-500 underline-offset-4 hover:text-cyan-700 md:text-base">
             Fakultet informatike u Puli
           </a>
         </div>
