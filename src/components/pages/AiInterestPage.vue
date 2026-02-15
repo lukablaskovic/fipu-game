@@ -23,6 +23,11 @@ const contactItems = [
     value: "fipu.unipu.hr",
     href: "https://fipu.unipu.hr/",
   },
+  {
+    label: "Telefon",
+    value: "052 877-438",
+    href: "tel:052877438",
+  },
 ];
 
 const toastVisible = ref(false);

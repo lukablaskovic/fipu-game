@@ -120,6 +120,7 @@ const aiOutroPage = ref(0);
 const aiOutroTouchStartX = ref(0);
 const aiOutroTouchDeltaX = ref(0);
 const aiOutroTotalPages = 4;
+const outroFullName = ref("");
 const outroEmail = ref("");
 const outroEmailStatus = ref("idle");
 const shouldShowAiInterestToast = ref(false);
@@ -412,6 +413,7 @@ const finishAiTraining = async () => {
   aiOutroPage.value = 0;
   isFirstAiTrainingGameCompleted.value = true;
   outroEmail.value = "";
+  outroFullName.value = "";
   outroEmailStatus.value = "idle";
   shouldShowAiInterestToast.value = false;
   phase.value = "ai-finished";
@@ -785,6 +787,8 @@ const onAiOutroTouchEnd = () => {
 
 const submitOutroEmail = async () => {
   const normalizedEmail = outroEmail.value.trim().toLowerCase();
+  const normalizedFullName = outroFullName.value.trim().replace(/\s+/g, " ");
+  const resolvedPlayerName = normalizedFullName || currentPlayerName.value;
   const hasEmail = Boolean(normalizedEmail);
 
   if (hasEmail && !isValidEmail(normalizedEmail)) {
@@ -814,7 +818,8 @@ const submitOutroEmail = async () => {
     });
     await sendOutroEmail({
       toEmail: normalizedEmail,
-      playerName: currentPlayerName.value,
+      playerName: resolvedPlayerName,
+      fullName: normalizedFullName,
       modelAccuracy: modelAccuracy.value,
       correctCount: correctCount.value,
       totalRounds: totalRounds.value,
@@ -823,6 +828,7 @@ const submitOutroEmail = async () => {
     outroEmailStatus.value = "saved";
     shouldShowAiInterestToast.value = true;
     outroEmail.value = "";
+    outroFullName.value = "";
     if (route.path !== "/ai-interest") {
       await router.push("/ai-interest");
     } else {
@@ -841,6 +847,7 @@ const closeAiInterestPage = () => {
 
 const closeAiOutro = () => {
   outroEmail.value = "";
+  outroFullName.value = "";
   outroEmailStatus.value = "idle";
   shouldShowAiInterestToast.value = false;
   openHome();
@@ -1006,6 +1013,7 @@ watch(
           :total-rounds="totalRounds"
           :correct-count="correctCount"
           :model-accuracy="modelAccuracy"
+          :outro-full-name="outroFullName"
           :outro-email="outroEmail"
           :outro-email-status="outroEmailStatus"
           :outro-email-status-text="outroEmailStatusText"
@@ -1015,6 +1023,7 @@ watch(
           @touch-start="onAiOutroTouchStart"
           @touch-move="onAiOutroTouchMove"
           @touch-end="onAiOutroTouchEnd"
+          @update:outro-full-name="outroFullName = $event"
           @update:outro-email="outroEmail = $event"
           @submit-outro-email="submitOutroEmail"
           @close-ai-outro="closeAiOutro" />

@@ -5,6 +5,7 @@ defineProps({
   totalRounds: { type: Number, required: true },
   correctCount: { type: Number, required: true },
   modelAccuracy: { type: Number, required: true },
+  outroFullName: { type: String, required: true },
   outroEmail: { type: String, required: true },
   outroEmailStatus: { type: String, required: true },
   outroEmailStatusText: { type: String, required: true },
@@ -17,6 +18,7 @@ const emit = defineEmits([
   "touch-start",
   "touch-move",
   "touch-end",
+  "update:outro-full-name",
   "update:outro-email",
   "submit-outro-email",
   "close-ai-outro",
@@ -156,6 +158,21 @@ const emit = defineEmits([
                 >. Bez brige, nećemo te spammati!
               </p>
             </div>
+
+            <label
+              for="outro-full-name"
+              class="mt-4 block text-xs font-semibold uppercase tracking-[0.16em] text-cyan-800"
+              >Ime i prezime (opcionalno)</label
+            >
+            <input
+              id="outro-full-name"
+              :value="outroFullName"
+              type="text"
+              autocomplete="name"
+              placeholder="npr. Ime Prezime"
+              class="mt-2 w-full rounded-xl border border-cyan-300 bg-white px-3 py-2 text-base text-slate-900 outline-none transition focus:border-cyan-500 focus:ring-2 focus:ring-cyan-300/45 md:text-sm"
+              @input="emit('update:outro-full-name', $event.target.value)"
+              @keyup.enter="emit('submit-outro-email')" />
 
             <label
               for="outro-email"

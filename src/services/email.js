@@ -14,6 +14,7 @@ const normalizeValue = (value) => String(value ?? '').trim()
 export const sendOutroEmail = async ({
   toEmail,
   playerName,
+  fullName,
   modelAccuracy,
   correctCount,
   totalRounds,
@@ -32,6 +33,7 @@ export const sendOutroEmail = async ({
   const templateParams = {
     to_email: email,
     player_name: normalizeValue(playerName) || 'Gost',
+    full_name: normalizeValue(fullName) || email,
     model_accuracy: `${Number(modelAccuracy) || 0}%`,
     correct_count: String(Number(correctCount) || 0),
     total_rounds: String(Number(totalRounds) || 0),
@@ -39,22 +41,6 @@ export const sendOutroEmail = async ({
     logo_image_url:
       typeof window !== 'undefined'
         ? `${window.location.origin}/fipu-unipu-logo.png`
-        : '',
-    study_photo_01_url:
-      typeof window !== 'undefined'
-        ? `${window.location.origin}/email-photos/01.webp`
-        : '',
-    study_photo_02_url:
-      typeof window !== 'undefined'
-        ? `${window.location.origin}/email-photos/02.jpeg`
-        : '',
-    study_photo_03_url:
-      typeof window !== 'undefined'
-        ? `${window.location.origin}/email-photos/03.jpeg`
-        : '',
-    study_photo_04_url:
-      typeof window !== 'undefined'
-        ? `${window.location.origin}/email-photos/04.HEIC`
         : '',
   }
 

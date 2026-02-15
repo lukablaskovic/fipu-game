@@ -71,11 +71,14 @@ VITE_EMAILJS_PUBLIC_KEY=
 2. Use HTML template from:
 - `/Users/lukablaskovic/Github/fipu-game/src/email/fipu-outro-email-template.html`
 3. In EmailJS template, use variables:
+- `{{to_email}}`
 - `{{player_name}}`
+- `{{full_name}}`
 - `{{model_accuracy}}`
 - `{{correct_count}}`
 - `{{total_rounds}}`
 - `{{difficulty}}`
+- `{{logo_image_url}}`
 
 ## Deploy Hosting
 
