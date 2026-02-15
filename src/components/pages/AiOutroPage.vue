@@ -1,4 +1,6 @@
 <script setup>
+import { nextTick, onBeforeUnmount, onMounted, ref } from "vue";
+
 defineProps({
   aiOutroPage: { type: Number, required: true },
   aiOutroTotalPages: { type: Number, required: true },
@@ -23,6 +25,79 @@ const emit = defineEmits([
   "submit-outro-email",
   "close-ai-outro",
 ]);
+
+const diplomaVideo = ref(null);
+let diplomaVideoObserver = null;
+
+const playDiplomaVideo = async () => {
+  const videoElement = diplomaVideo.value;
+  if (!videoElement) return;
+
+  videoElement.muted = true;
+  videoElement.defaultMuted = true;
+  videoElement.playsInline = true;
+  videoElement.setAttribute("playsinline", "");
+  videoElement.setAttribute("webkit-playsinline", "true");
+
+  try {
+    await videoElement.play();
+  } catch {
+    // Some mobile browsers still block autoplay in specific battery/data modes.
+  }
+};
+
+const pauseDiplomaVideo = () => {
+  const videoElement = diplomaVideo.value;
+  if (!videoElement) return;
+  videoElement.pause();
+};
+
+const handleDocumentVisibility = () => {
+  if (document.hidden) {
+    pauseDiplomaVideo();
+    return;
+  }
+  playDiplomaVideo();
+};
+
+onMounted(async () => {
+  await nextTick();
+
+  const videoElement = diplomaVideo.value;
+  if (!videoElement) return;
+
+  if ("IntersectionObserver" in window) {
+    diplomaVideoObserver = new IntersectionObserver(
+      (entries) => {
+        const [entry] = entries;
+        if (!entry) return;
+
+        if (entry.isIntersecting && entry.intersectionRatio >= 0.35) {
+          playDiplomaVideo();
+          return;
+        }
+
+        pauseDiplomaVideo();
+      },
+      {
+        threshold: [0, 0.35, 0.7],
+      }
+    );
+
+    diplomaVideoObserver.observe(videoElement);
+  } else {
+    playDiplomaVideo();
+  }
+
+  document.addEventListener("visibilitychange", handleDocumentVisibility, {
+    passive: true,
+  });
+});
+
+onBeforeUnmount(() => {
+  diplomaVideoObserver?.disconnect();
+  document.removeEventListener("visibilitychange", handleDocumentVisibility);
+});
 </script>
 
 <template>
@@ -124,12 +199,15 @@ const emit = defineEmits([
 
           <section class="w-full shrink-0 p-4 sm:p-5">
             <video
+              ref="diplomaVideo"
               class="mx-auto h-52 w-full max-w-xs rounded-2xl object-contain sm:h-56"
               autoplay
               loop
               muted
               playsinline
+              webkit-playsinline="true"
               preload="auto"
+              poster="/fipu_student_success.png"
               disablepictureinpicture
               disableremoteplayback
               aria-label="FIPU student diploma">
