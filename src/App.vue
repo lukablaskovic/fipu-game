@@ -201,7 +201,7 @@ const revealedNameClass = computed(() => {
 const isValidEmail = (value) => /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/i.test(value);
 
 const outroEmailStatusText = computed(() => {
-  if (outroEmailStatus.value === "saving") return "Spremam email...";
+  if (outroEmailStatus.value === "saving") return "Pripremam slanje...";
   if (outroEmailStatus.value === "saved")
     return "Hvala! Poslat ćemo ti više detalja.";
   if (outroEmailStatus.value === "invalid")
