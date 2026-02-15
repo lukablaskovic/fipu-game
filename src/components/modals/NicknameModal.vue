@@ -22,8 +22,8 @@ const emit = defineEmits([
       <template v-if="!isAutoNameRevealVisible">
         <h2 class="font-title text-2xl font-bold text-cyan-900">Nadimak</h2>
         <p class="mt-2 text-sm text-slate-700">
-          Unesi nadimak za leaderboard. Ako nastaviš bez nadimaka, dodijelit
-          ćemo ti nasumični!
+          Ovdje možeš unijeti nadimak za rang-listu. Ako nastaviš bez nadimaka,
+          dodijelit ćemo ti nasumični!
         </p>
 
         <label

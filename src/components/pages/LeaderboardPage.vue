@@ -59,7 +59,7 @@ const trophyForIndex = (index) => {
     <article
       class="rounded-3xl border border-cyan-200/70 bg-white/90 p-4 shadow-[0_14px_40px_rgba(80,210,254,0.16)] md:p-5">
       <div class="flex items-center justify-between">
-        <h2 class="font-title text-xl font-bold text-cyan-900">Leaderboard</h2>
+        <h2 class="font-title text-xl font-bold text-cyan-900">Rang-lista</h2>
         <span class="text-xs uppercase tracking-[0.14em] text-cyan-700"
           >{{ leaderboard.length }}
           {{ leaderboard.length > 1 ? "rezultata" : "rezultat" }}</span
@@ -130,9 +130,9 @@ const trophyForIndex = (index) => {
 
       <button
         type="button"
-        class="cursor-pointer mt-6 rounded-2xl bg-[#50d2fe] px-5 py-3 font-title text-base font-bold uppercase tracking-[0.12em] text-slate-950 transition hover:-translate-y-0.5 hover:bg-cyan-200"
+        class="cursor-pointer mx-auto mt-6 block rounded-2xl bg-[#50d2fe] px-5 py-3 font-title text-base font-bold uppercase tracking-[0.12em] text-slate-950 transition hover:-translate-y-0.5 hover:bg-cyan-200"
         @click="emit('open-home')">
-        Natrag na odabir
+        Natrag na početnu
       </button>
     </article>
   </section>

@@ -106,7 +106,7 @@ const emit = defineEmits([
         type="button"
         class="cursor-pointer mt-3 mb-5 w-full rounded-2xl border border-cyan-500 bg-white px-5 py-3 text-center font-title text-base font-bold uppercase tracking-[0.12em] text-cyan-900 transition hover:bg-cyan-50"
         @click="emit('open-leaderboard')">
-        Leaderboard
+        Rang-lista
       </button>
     </article>
   </section>
