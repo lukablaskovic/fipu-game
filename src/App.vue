@@ -578,6 +578,7 @@ const openHome = () => {
   }
 
   phase.value = "home";
+  window.requestAnimationFrame(scrollPageToTop);
 };
 
 const openLeaderboard = async () => {
@@ -865,6 +866,11 @@ const optionButtonClass = (label) => {
 };
 
 onMounted(async () => {
+  if ("scrollRestoration" in window.history) {
+    window.history.scrollRestoration = "manual";
+  }
+
+  window.requestAnimationFrame(scrollPageToTop);
   window.addEventListener("beforeunload", handleBeforeUnload);
 });
 
@@ -879,6 +885,7 @@ watch(
     if (path === "/") {
       clearTimers();
       phase.value = "home";
+      window.requestAnimationFrame(scrollPageToTop);
       return;
     }
 
