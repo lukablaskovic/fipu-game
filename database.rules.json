@@ -2,7 +2,7 @@
   "rules": {
     ".read": true,
     "leaderboard": {
-      ".indexOn": ["score", "difficulty"],
+      ".indexOn": ["score", "difficulty", "gameType"],
       ".write": true,
       "$entry": {
         "name": {
@@ -19,6 +19,9 @@
         },
         "difficulty": {
           ".validate": "newData.isString() && (newData.val() === 'easy' || newData.val() === 'hard')"
+        },
+        "gameType": {
+          ".validate": "newData.isString() && (newData.val() === 'ai' || newData.val() === 'quiz')"
         },
         "userId": {
           ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length <= 64"

@@ -4,18 +4,29 @@ import { computed, ref } from "vue";
 const props = defineProps({
   leaderboard: { type: Array, required: true },
   difficulty: { type: String, required: true },
+  gameType: { type: String, required: true },
   leaderboardLoading: { type: Boolean, required: true },
 });
 
-const emit = defineEmits(["open-home", "set-difficulty"]);
+const emit = defineEmits(["open-home", "set-difficulty", "set-game-type"]);
 const touchStartX = ref(0);
 const touchDeltaX = ref(0);
 
 const normalizedDifficulty = computed(() =>
   props.difficulty === "hard" ? "hard" : "easy",
 );
+const normalizedGameType = computed(() =>
+  props.gameType === "quiz" ? "quiz" : "ai",
+);
+
+const setGameType = (gameType) => {
+  const next = gameType === "quiz" ? "quiz" : "ai";
+  if (next === normalizedGameType.value) return;
+  emit("set-game-type", next);
+};
 
 const setDifficulty = (difficulty) => {
+  if (normalizedGameType.value !== "ai") return;
   const next = difficulty === "hard" ? "hard" : "easy";
   if (next === normalizedDifficulty.value) return;
   emit("set-difficulty", next);
@@ -32,6 +43,11 @@ const onTouchMove = (event) => {
 };
 
 const onTouchEnd = () => {
+  if (normalizedGameType.value !== "ai") {
+    touchStartX.value = 0;
+    touchDeltaX.value = 0;
+    return;
+  }
   const threshold = 55;
   if (touchDeltaX.value <= -threshold) setDifficulty("hard");
   if (touchDeltaX.value >= threshold) setDifficulty("easy");
@@ -72,9 +88,38 @@ const trophyForIndex = (index) => {
             type="button"
             class="cursor-pointer flex-1 rounded-xl border px-3 py-2 text-xs font-semibold uppercase tracking-[0.1em] transition sm:text-sm"
             :class="
+              normalizedGameType === 'ai'
+                ? 'border-cyan-600 bg-cyan-200 text-cyan-900'
+                : 'border-slate-300 bg-slate-100 text-slate-500 hover:bg-slate-200'
+            "
+            @click="setGameType('ai')">
+            Treniranje AI-a
+          </button>
+          <button
+            type="button"
+            class="cursor-pointer flex-1 rounded-xl border px-3 py-2 text-xs font-semibold uppercase tracking-[0.1em] transition sm:text-sm"
+            :class="
+              normalizedGameType === 'quiz'
+                ? 'border-cyan-600 bg-cyan-200 text-cyan-900'
+                : 'border-slate-300 bg-slate-100 text-slate-500 hover:bg-slate-200'
+            "
+            @click="setGameType('quiz')">
+            Kviz znanja
+          </button>
+        </div>
+      </div>
+
+      <div
+        v-if="normalizedGameType === 'ai'"
+        class="mt-4 rounded-2xl border border-cyan-200 bg-cyan-50/75 p-1">
+        <div class="flex gap-2">
+          <button
+            type="button"
+            class="cursor-pointer flex-1 rounded-xl border px-3 py-2 text-xs font-semibold uppercase tracking-[0.1em] transition sm:text-sm"
+            :class="
               normalizedDifficulty === 'easy'
                 ? 'border-emerald-600 bg-emerald-200 text-emerald-900'
-                : 'border-emerald-300 bg-white text-emerald-800 hover:bg-emerald-100'
+                : 'border-slate-300 bg-slate-100 text-slate-500 hover:bg-slate-200'
             "
             @click="setDifficulty('easy')">
             Easy
@@ -85,7 +130,7 @@ const trophyForIndex = (index) => {
             :class="
               normalizedDifficulty === 'hard'
                 ? 'border-rose-600 bg-rose-200 text-rose-900'
-                : 'border-rose-300 bg-white text-rose-800 hover:bg-rose-100'
+                : 'border-slate-300 bg-slate-100 text-slate-500 hover:bg-slate-200'
             "
             @click="setDifficulty('hard')">
             Hard
@@ -122,9 +167,13 @@ const trophyForIndex = (index) => {
               class="h-5 w-5 shrink-0 object-contain" />
             <span>{{ index + 1 }}. {{ entry.name }}</span>
           </span>
-          <span class="font-title text-lg font-bold text-cyan-800"
-            >{{ entry.score }}%</span
-          >
+          <span class="font-title text-lg font-bold text-cyan-800">
+            {{
+              normalizedGameType === "ai"
+                ? `${entry.score}%`
+                : `${entry.score} ${entry.score === 1 ? "bod" : "boda"}`
+            }}
+          </span>
         </li>
       </ol>
 

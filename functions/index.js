@@ -7,6 +7,7 @@ initializeApp()
 const MAX_SCORE = 5000
 const MAX_DURATION_MS = 180000
 const ALLOWED_DIFFICULTIES = ['easy', 'hard']
+const ALLOWED_GAME_TYPES = ['ai', 'quiz']
 
 const normalizeName = (rawName) => {
   const cleanName = String(rawName ?? '').trim().replace(/\s+/g, ' ')
@@ -27,6 +28,14 @@ const normalizeDifficulty = (rawDifficulty) => {
     throw new HttpsError('invalid-argument', 'Score payload contains invalid difficulty.')
   }
   return difficulty
+}
+
+const normalizeGameType = (rawGameType) => {
+  const gameType = String(rawGameType ?? '').toLowerCase()
+  if (!ALLOWED_GAME_TYPES.includes(gameType)) {
+    throw new HttpsError('invalid-argument', 'Score payload contains invalid gameType.')
+  }
+  return gameType
 }
 
 const isBetterEntry = (nextEntry, currentEntry) => {
@@ -51,6 +60,7 @@ const normalizeBoundedNumber = (rawValue, min, max) => {
 
 export const submitScore = onCall({ cors: true }, async (request) => {
   const payload = request.data ?? {}
+  const gameType = normalizeGameType(payload.gameType ?? 'ai')
 
   const entry = {
     name: normalizeName(payload.name),
@@ -58,11 +68,13 @@ export const submitScore = onCall({ cors: true }, async (request) => {
     durationMs: normalizeBoundedNumber(payload.durationMs, 0, MAX_DURATION_MS),
     streak: normalizeBoundedNumber(payload.streak ?? 0, 0, 99),
     userId: normalizeUserId(payload.userId),
-    difficulty: normalizeDifficulty(payload.difficulty),
+    difficulty: gameType === 'ai' ? normalizeDifficulty(payload.difficulty) : 'easy',
+    gameType,
     createdAt: Date.now(),
   }
 
-  const entryRef = getDatabase().ref(`leaderboard/${entry.userId}_${entry.difficulty}`)
+  const difficultyKey = entry.gameType === 'ai' ? entry.difficulty : 'all'
+  const entryRef = getDatabase().ref(`leaderboard/${entry.userId}_${entry.gameType}_${difficultyKey}`)
 
   await entryRef.transaction((currentValue) => {
     const currentEntry = currentValue ? currentValue : null

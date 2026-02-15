@@ -2,6 +2,7 @@
 import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { aiTrainFrames, aiTrainLabels } from "./data/aiTrainImages";
+import { quizQuestions } from "./data/quizQuestions";
 import { submitInterestEmail } from "./services/leads";
 import { sendOutroEmail } from "./services/email";
 import {
@@ -15,9 +16,11 @@ import AiIntroPage from "./components/pages/AiIntroPage.vue";
 import AiOutroPage from "./components/pages/AiOutroPage.vue";
 import AiPlayingPage from "./components/pages/AiPlayingPage.vue";
 import AiInterestPage from "./components/pages/AiInterestPage.vue";
-import ComingSoonPage from "./components/pages/ComingSoonPage.vue";
 import HomePage from "./components/pages/HomePage.vue";
 import LeaderboardPage from "./components/pages/LeaderboardPage.vue";
+import QuizPlayingPage from "./components/pages/QuizPlayingPage.vue";
+import QuizFinishedPage from "./components/pages/QuizFinishedPage.vue";
+import QuizCancelModal from "./components/modals/QuizCancelModal.vue";
 
 const gameTypes = [
   {
@@ -26,22 +29,29 @@ const gameTypes = [
     description:
       "Pogledaj kako je to trenirati AI model da raspoznaje slike. Hoćeš li ga uspjeti natrenirati na 100% točnosti?",
   },
+  {
+    id: "quiz",
+    title: "Kviz znanja",
+    description:
+      "Riješi brzi kviz i provjeri svoje opće znanje iz informatike.",
+  },
 ];
 
 const gameCardGifs = {
   ai: "/ai-train-robot-gif.gif",
+  quiz: "/ai-quiz-robot-gif.gif",
 };
 
 const difficultyOptions = [
-  { id: "easy", label: "Easy (60s)" },
-  { id: "hard", label: "Hard (40s)" },
+  { id: "easy", label: "Easy (80s)" },
+  { id: "hard", label: "Hard (45s)" },
 ];
 
 const aiConfigs = {
   easy: {
     totalRounds: 20,
     roundDurationMs: 3000,
-    sessionDurationMs: 60000,
+    sessionDurationMs: 80000,
     optionCount: 4,
     feedbackMs: 0,
     label: "Easy",
@@ -49,13 +59,14 @@ const aiConfigs = {
   hard: {
     totalRounds: 20,
     roundDurationMs: 1500,
-    sessionDurationMs: 40000,
+    sessionDurationMs: 45000,
     optionCount: 4,
     feedbackMs: 0,
     label: "Hard",
   },
 };
 const aiQuizSampleSize = 20;
+const QUIZ_SESSION_DURATION_MS = 60000;
 
 const NICKNAME_STORAGE_KEY = "fipu-nickname";
 const route = useRoute();
@@ -90,6 +101,7 @@ const autoNameRevealShowName = ref(false);
 const leaderboard = ref([]);
 const leaderboardLoading = ref(false);
 const leaderboardMode = ref("local");
+const leaderboardGameType = ref("ai");
 const leaderboardDifficulty = ref("easy");
 const saveStatus = ref("idle");
 const localUserId = ref(getOrCreateLocalUserId());
@@ -129,6 +141,13 @@ const startCountdownText = ref("");
 const isGameOverCelebrationVisible = ref(false);
 const gameOverCelebrationToken = ref(0);
 const isFirstAiTrainingGameCompleted = ref(false);
+const quizQuestionIndex = ref(0);
+const quizScore = ref(0);
+const selectedQuizOption = ref("");
+const quizTimeLeftMs = ref(QUIZ_SESSION_DURATION_MS);
+const isQuizCancelModalOpen = ref(false);
+const quizStartMs = ref(0);
+const isQuizScoreSaved = ref(false);
 
 const activeAiConfig = computed(() => aiConfigs[activeDifficulty.value]);
 const selectedAiConfig = computed(() => aiConfigs[selectedDifficulty.value]);
@@ -175,7 +194,9 @@ const areOptionButtonsDisabled = computed(
     Boolean(feedback.value),
 );
 const isGameRunning = computed(() =>
-  ["ai-playing", "it-playing", "quiz-playing"].includes(phase.value),
+  ["ai-playing", "it-playing", "quiz-playing", "quiz-starting"].includes(
+    phase.value,
+  ),
 );
 
 const currentPlayerName = computed(() => {
@@ -183,7 +204,6 @@ const currentPlayerName = computed(() => {
   return cleaned ? cleaned.slice(0, 24) : "Gost";
 });
 
-const selectedDifficultyLabel = computed(() => selectedAiConfig.value.label);
 const revealedNameClass = computed(() => {
   const length = autoNameRevealName.value.length;
 
@@ -197,6 +217,20 @@ const revealedNameClass = computed(() => {
 
   return "text-[clamp(1.3rem,6.2vw,2.15rem)] tracking-[0.08em]";
 });
+const totalQuizQuestions = computed(() => quizQuestions.length);
+const currentQuizQuestion = computed(
+  () => quizQuestions[quizQuestionIndex.value] ?? quizQuestions[0],
+);
+const quizSecondsLeft = computed(() =>
+  Math.max(0, Math.ceil(quizTimeLeftMs.value / 1000)),
+);
+const quizTimerPercent = computed(() => {
+  const ratio = quizTimeLeftMs.value / QUIZ_SESSION_DURATION_MS;
+  return Math.max(0, Math.min(100, ratio * 100));
+});
+const isQuizInteractionLocked = computed(
+  () => phase.value !== "quiz-playing" || quizTimeLeftMs.value <= 0,
+);
 
 const isValidEmail = (value) => /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/i.test(value);
 
@@ -224,6 +258,7 @@ let hitEffectTimeoutId = 0;
 let autoNameRevealPauseId = 0;
 let autoNameRevealFinishId = 0;
 let gameOverCelebrationTimeoutId = 0;
+let quizAutoAdvanceTimeoutId = 0;
 let roundResolved = false;
 let scrollResetTimeoutId = 0;
 
@@ -245,6 +280,10 @@ const syncFrameTimeLeft = () => {
 
 const syncSessionTimeLeft = () => {
   sessionTimeLeftMs.value = Math.max(0, sessionDeadlineMs - Date.now());
+};
+
+const syncQuizTimeLeft = () => {
+  quizTimeLeftMs.value = Math.max(0, sessionDeadlineMs - Date.now());
 };
 
 const startSessionTimer = () => {
@@ -279,6 +318,7 @@ const clearTimers = () => {
   window.clearTimeout(autoNameRevealPauseId);
   window.clearTimeout(autoNameRevealFinishId);
   window.clearTimeout(gameOverCelebrationTimeoutId);
+  window.clearTimeout(quizAutoAdvanceTimeoutId);
   window.clearTimeout(scrollResetTimeoutId);
 
   roundTimeoutId = 0;
@@ -292,6 +332,7 @@ const clearTimers = () => {
   autoNameRevealPauseId = 0;
   autoNameRevealFinishId = 0;
   gameOverCelebrationTimeoutId = 0;
+  quizAutoAdvanceTimeoutId = 0;
   scrollResetTimeoutId = 0;
   roundDeadlineMs = 0;
   sessionDeadlineMs = 0;
@@ -323,6 +364,7 @@ const refreshLeaderboard = async () => {
   try {
     const { mode, scores } = await fetchTopScoresByDifficulty({
       limit: 8,
+      gameType: leaderboardGameType.value,
       difficulty: leaderboardDifficulty.value,
     });
     leaderboardMode.value = mode;
@@ -433,6 +475,7 @@ const finishAiTraining = async () => {
       durationMs: sessionDurationMs.value,
       streak: bestStreak.value,
       difficulty: activeDifficulty.value,
+      gameType: "ai",
       userId: localUserId.value,
     });
 
@@ -572,6 +615,7 @@ const startRound = () => {
 
 const openHome = () => {
   clearTimers();
+  isQuizCancelModalOpen.value = false;
   if (route.path !== "/") {
     void router.push("/");
     return;
@@ -582,6 +626,7 @@ const openHome = () => {
 };
 
 const openLeaderboard = async () => {
+  leaderboardGameType.value = selectedGameType.value === "quiz" ? "quiz" : "ai";
   if (route.path !== "/leaderboard") {
     await router.push("/leaderboard");
     return;
@@ -593,6 +638,11 @@ const openLeaderboard = async () => {
 
 const setLeaderboardDifficulty = async (difficulty) => {
   leaderboardDifficulty.value = difficulty === "hard" ? "hard" : "easy";
+  await refreshLeaderboard();
+};
+
+const setLeaderboardGameType = async (gameType) => {
+  leaderboardGameType.value = gameType === "quiz" ? "quiz" : "ai";
   await refreshLeaderboard();
 };
 
@@ -629,17 +679,12 @@ const scrollPageToTop = () => {
 };
 
 const continueStartingSelectedGame = () => {
-  if (selectedGameType.value === "ai") {
-    openAiIntro();
+  if (selectedGameType.value === "quiz") {
+    void beginQuizGame();
     return;
   }
 
-  if (selectedGameType.value === "it") {
-    phase.value = "it-soon";
-    return;
-  }
-
-  phase.value = "leaderboard-soon";
+  openAiIntro();
 };
 
 const revealGeneratedNameAndContinue = () => {
@@ -693,35 +738,15 @@ const goBackFromNicknameModal = () => {
 
 const beginAiTraining = () => {
   clearTimers();
-  const countdownSteps = ["3", "2", "1", "GO!"];
-  let countdownIndex = 0;
-
-  isStartCountdownVisible.value = true;
-  startCountdownText.value = countdownSteps[countdownIndex];
-
-  startCountdownIntervalId = window.setInterval(() => {
-    countdownIndex += 1;
-    startCountdownText.value = countdownSteps[countdownIndex] ?? "GO!";
-
-    if (countdownIndex < countdownSteps.length - 1) return;
-
-    window.clearInterval(startCountdownIntervalId);
-    startCountdownIntervalId = 0;
-
-    startCountdownFinishId = window.setTimeout(() => {
-      isStartCountdownVisible.value = false;
-      startCountdownText.value = "";
-      startCountdownFinishId = 0;
-
-      activeDifficulty.value = selectedDifficulty.value;
-      prepareSessionFrames();
-      resetAiSession();
-      sessionStartMs.value = Date.now();
-      startSessionTimer();
-      phase.value = "ai-playing";
-      startRound();
-    }, 700);
-  }, 900);
+  runStartCountdown(() => {
+    activeDifficulty.value = selectedDifficulty.value;
+    prepareSessionFrames();
+    resetAiSession();
+    sessionStartMs.value = Date.now();
+    startSessionTimer();
+    phase.value = "ai-playing";
+    startRound();
+  });
 };
 
 const nextAiIntroPage = () => {
@@ -853,6 +878,205 @@ const startSelectedGame = () => {
   isNicknameModalOpen.value = true;
 };
 
+const resetQuizSession = () => {
+  window.clearInterval(sessionTickId);
+  window.clearTimeout(sessionTimeoutId);
+  sessionTickId = 0;
+  sessionTimeoutId = 0;
+  quizQuestionIndex.value = 0;
+  quizScore.value = 0;
+  selectedQuizOption.value = "";
+  quizTimeLeftMs.value = QUIZ_SESSION_DURATION_MS;
+  quizStartMs.value = 0;
+  isQuizScoreSaved.value = false;
+};
+
+const selectQuizOption = (optionKey) => {
+  if (selectedQuizOption.value || phase.value !== "quiz-playing") return;
+
+  selectedQuizOption.value = optionKey;
+
+  if (optionKey === currentQuizQuestion.value.correctOption) {
+    quizScore.value += 1;
+  }
+
+  window.clearTimeout(quizAutoAdvanceTimeoutId);
+  quizAutoAdvanceTimeoutId = window.setTimeout(() => {
+    quizAutoAdvanceTimeoutId = 0;
+    nextQuizQuestion();
+  }, 300);
+};
+
+const nextQuizQuestion = () => {
+  if (!selectedQuizOption.value || phase.value !== "quiz-playing") return;
+  window.clearTimeout(quizAutoAdvanceTimeoutId);
+  quizAutoAdvanceTimeoutId = 0;
+
+  if (quizQuestionIndex.value >= quizQuestions.length - 1) {
+    void finishQuizGame();
+    return;
+  }
+
+  quizQuestionIndex.value += 1;
+  selectedQuizOption.value = "";
+};
+
+const restartQuiz = () => {
+  void beginQuizGame();
+};
+
+const cancelQuizGame = () => {
+  if (isQuizCancelModalOpen.value) return;
+  isQuizCancelModalOpen.value = true;
+  if (phase.value === "quiz-playing") {
+    syncQuizTimeLeft();
+    pauseQuizTimer();
+  }
+};
+
+const closeQuizCancelModal = () => {
+  isQuizCancelModalOpen.value = false;
+  resumeQuizTimer();
+};
+
+const confirmCancelQuizGame = () => {
+  isQuizCancelModalOpen.value = false;
+  openHome();
+};
+
+const runStartCountdown = (onFinish) => {
+  const countdownSteps = ["3", "2", "1", "GO!"];
+  let countdownIndex = 0;
+
+  isStartCountdownVisible.value = true;
+  startCountdownText.value = countdownSteps[countdownIndex];
+
+  startCountdownIntervalId = window.setInterval(() => {
+    countdownIndex += 1;
+    startCountdownText.value = countdownSteps[countdownIndex] ?? "GO!";
+
+    if (countdownIndex < countdownSteps.length - 1) return;
+
+    window.clearInterval(startCountdownIntervalId);
+    startCountdownIntervalId = 0;
+
+    startCountdownFinishId = window.setTimeout(() => {
+      isStartCountdownVisible.value = false;
+      startCountdownText.value = "";
+      startCountdownFinishId = 0;
+      onFinish();
+    }, 700);
+  }, 900);
+};
+
+const finishQuizGame = async () => {
+  if (phase.value === "quiz-finished" || isQuizScoreSaved.value) {
+    phase.value = "quiz-finished";
+    return;
+  }
+
+  window.clearInterval(sessionTickId);
+  window.clearTimeout(sessionTimeoutId);
+  sessionTickId = 0;
+  sessionTimeoutId = 0;
+  phase.value = "quiz-finished";
+  isQuizScoreSaved.value = true;
+
+  const quizDurationMs = quizStartMs.value
+    ? Math.max(0, Date.now() - quizStartMs.value)
+    : QUIZ_SESSION_DURATION_MS;
+
+  try {
+    const { mode } = await submitScore({
+      name: currentPlayerName.value,
+      score: quizScore.value,
+      durationMs: quizDurationMs,
+      streak: 0,
+      difficulty: "easy",
+      gameType: "quiz",
+      userId: localUserId.value,
+    });
+    leaderboardMode.value = mode;
+  } catch {
+    // keep UX smooth; leaderboard fallback is handled in service
+  }
+};
+
+const startQuizTimer = () => {
+  window.clearInterval(sessionTickId);
+  window.clearTimeout(sessionTimeoutId);
+
+  if (!quizStartMs.value) {
+    quizStartMs.value = Date.now();
+  }
+
+  sessionDeadlineMs = Date.now() + QUIZ_SESSION_DURATION_MS;
+  syncQuizTimeLeft();
+
+  sessionTickId = window.setInterval(() => {
+    syncQuizTimeLeft();
+  }, 50);
+
+  sessionTimeoutId = window.setTimeout(() => {
+    quizTimeLeftMs.value = 0;
+    window.clearInterval(sessionTickId);
+    sessionTickId = 0;
+    sessionTimeoutId = 0;
+    if (phase.value === "quiz-playing") {
+      void finishQuizGame();
+    }
+  }, QUIZ_SESSION_DURATION_MS);
+};
+
+const pauseQuizTimer = () => {
+  window.clearInterval(sessionTickId);
+  window.clearTimeout(sessionTimeoutId);
+  sessionTickId = 0;
+  sessionTimeoutId = 0;
+};
+
+const resumeQuizTimer = () => {
+  if (phase.value !== "quiz-playing" || quizTimeLeftMs.value <= 0) return;
+
+  window.clearInterval(sessionTickId);
+  window.clearTimeout(sessionTimeoutId);
+
+  sessionDeadlineMs = Date.now() + quizTimeLeftMs.value;
+
+  sessionTickId = window.setInterval(() => {
+    syncQuizTimeLeft();
+  }, 50);
+
+  sessionTimeoutId = window.setTimeout(() => {
+    quizTimeLeftMs.value = 0;
+    window.clearInterval(sessionTickId);
+    sessionTickId = 0;
+    sessionTimeoutId = 0;
+    if (phase.value === "quiz-playing") {
+      void finishQuizGame();
+    }
+  }, quizTimeLeftMs.value);
+};
+
+const beginQuizGame = async () => {
+  clearTimers();
+  resetQuizSession();
+  isQuizCancelModalOpen.value = false;
+  phase.value = "quiz-starting";
+
+  if (route.path !== "/quiz") {
+    await router.push("/quiz");
+  } else {
+    window.requestAnimationFrame(scrollPageToTop);
+  }
+
+  runStartCountdown(() => {
+    phase.value = "quiz-playing";
+    quizStartMs.value = Date.now();
+    startQuizTimer();
+  });
+};
+
 const optionButtonClass = (label) => {
   if (!selectedOption.value || selectedOption.value !== label) {
     return "";
@@ -898,6 +1122,20 @@ watch(
     if (path === "/ai-intro") {
       aiIntroPage.value = 0;
       phase.value = "ai-intro";
+      window.requestAnimationFrame(scrollPageToTop);
+      return;
+    }
+
+    if (path === "/quiz") {
+      if (
+        phase.value !== "quiz-starting" &&
+        phase.value !== "quiz-playing" &&
+        phase.value !== "quiz-finished"
+      ) {
+        resetQuizSession();
+        phase.value = "quiz-playing";
+        startQuizTimer();
+      }
       window.requestAnimationFrame(scrollPageToTop);
       return;
     }
@@ -958,13 +1196,38 @@ watch(
           @start-selected-game="startSelectedGame"
           @open-leaderboard="openLeaderboard" />
 
+        <QuizPlayingPage
+          v-else-if="phase === 'quiz-playing' || phase === 'quiz-starting'"
+          key="quiz-playing"
+          :current-question="currentQuizQuestion"
+          :current-question-number="quizQuestionIndex + 1"
+          :total-questions="totalQuizQuestions"
+          :quiz-score="quizScore"
+          :selected-option="selectedQuizOption"
+          :quiz-seconds-left="quizSecondsLeft"
+          :quiz-timer-percent="quizTimerPercent"
+          :is-locked="isQuizInteractionLocked"
+          @select-option="selectQuizOption"
+          @next-question="nextQuizQuestion"
+          @request-cancel="cancelQuizGame" />
+
+        <QuizFinishedPage
+          v-else-if="phase === 'quiz-finished'"
+          key="quiz-finished"
+          :quiz-score="quizScore"
+          :total-questions="totalQuizQuestions"
+          @restart-quiz="restartQuiz"
+          @open-home="openHome" />
+
         <LeaderboardPage
           v-else-if="phase === 'leaderboard'"
           key="leaderboard"
           :leaderboard="leaderboard"
           :difficulty="leaderboardDifficulty"
+          :game-type="leaderboardGameType"
           :leaderboard-loading="leaderboardLoading"
           @set-difficulty="setLeaderboardDifficulty"
+          @set-game-type="setLeaderboardGameType"
           @open-home="openHome" />
 
         <AiIntroPage
@@ -1035,12 +1298,18 @@ watch(
           :show-success-toast="shouldShowAiInterestToast"
           @open-home="closeAiInterestPage" />
 
-        <ComingSoonPage
+        <HomePage
           v-else
-          key="coming-soon"
-          :phase="phase"
-          :selected-difficulty-label="selectedDifficultyLabel"
-          @open-home="openHome" />
+          key="home-fallback"
+          :game-types="gameTypes"
+          :game-card-gifs="gameCardGifs"
+          :difficulty-options="difficultyOptions"
+          :selected-game-type="selectedGameType"
+          :selected-difficulty="selectedDifficulty"
+          @select-game-type="selectedGameType = $event"
+          @select-difficulty="selectedDifficulty = $event"
+          @start-selected-game="startSelectedGame"
+          @open-leaderboard="openLeaderboard" />
       </Transition>
 
       <NicknameModal
@@ -1053,6 +1322,11 @@ watch(
         @update:nickname-draft="nicknameDraft = $event"
         @confirm-nickname-and-start-game="confirmNicknameAndStartGame"
         @go-back-from-nickname-modal="goBackFromNicknameModal" />
+
+      <QuizCancelModal
+        v-if="isQuizCancelModalOpen"
+        @close="closeQuizCancelModal"
+        @confirm-cancel="confirmCancelQuizGame" />
 
       <section
         v-if="isStartCountdownVisible"

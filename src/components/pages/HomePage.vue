@@ -32,11 +32,13 @@ const emit = defineEmits([
           Smatramo da je interaktivni pristup, posebno kroz igru, najbolji
           pristup učenju. Iz tog razloga smo pripremili igricu "Treniranje AI-a"
           koja će ti pomoći da na zabavan način saznaš više o našem fakultetu,
-          umjetnoj inteligenciji i IT-u općenito.
+          umjetnoj inteligenciji i IT-u općenito. Osim toga, čeka te i kviz
+          kojim možeš provjeriti svoje opće IT znanje.
         </p>
         <p class="mt-3 text-sm leading-relaxed text-slate-800 md:text-base">
-          To nije sve! Ako uspješno prijeđeš <b>Hard razinu</b> s barem
-          <b>90% točnosti</b>, dobit ćeš i mali poklon od nas!
+          To nije sve! Ako uspješno prijeđeš <b>Hard razinu</b> "Treniranje AI"
+          s barem <b>80% točnosti</b>, ili kviz s barem
+          <b>7 od 10 točnih odgovora</b>, javi nam se i dobit ćeš poklončić!
         </p>
       </div>
 
@@ -73,7 +75,9 @@ const emit = defineEmits([
         </button>
       </div>
 
-      <div class="mt-5 rounded-2xl border border-cyan-200/70 bg-cyan-50/75 p-4">
+      <div
+        v-if="selectedGameType === 'ai'"
+        class="mt-5 rounded-2xl border border-cyan-200/70 bg-cyan-50/75 p-4">
         <div class="flex gap-2">
           <button
             v-for="difficulty in difficultyOptions"
@@ -84,10 +88,10 @@ const emit = defineEmits([
               difficulty.id === 'easy'
                 ? selectedDifficulty === difficulty.id
                   ? 'border-emerald-600 bg-emerald-200 text-emerald-900'
-                  : 'border-emerald-300 bg-white text-emerald-800 hover:bg-emerald-100'
+                  : 'border-slate-300 bg-slate-100 text-slate-500 hover:bg-slate-200'
                 : selectedDifficulty === difficulty.id
                   ? 'border-rose-600 bg-rose-200 text-rose-900'
-                  : 'border-rose-300 bg-white text-rose-800 hover:bg-rose-100'
+                  : 'border-slate-300 bg-slate-100 text-slate-500 hover:bg-slate-200'
             "
             @click="emit('select-difficulty', difficulty.id)">
             {{ difficulty.label }}

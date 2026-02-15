@@ -8,6 +8,7 @@ const MAX_SCORE = 5000
 const MAX_DURATION_MS = 180000
 const USE_CALLABLE = import.meta.env.VITE_USE_FUNCTIONS === 'true'
 const ALLOWED_DIFFICULTIES = ['easy', 'hard']
+const ALLOWED_GAME_TYPES = ['ai', 'quiz']
 
 const normalizeName = (name) => {
   const cleanName = String(name ?? '').trim().replace(/\s+/g, ' ')
@@ -34,6 +35,7 @@ const normalizeEntry = (entry) => ({
   streak: Math.max(0, Math.min(99, Math.round(Number(entry.streak) || 0))),
   userId: String(entry.userId ?? '').trim().slice(0, 64) || 'legacy-user',
   difficulty: ALLOWED_DIFFICULTIES.includes(entry.difficulty) ? entry.difficulty : 'easy',
+  gameType: ALLOWED_GAME_TYPES.includes(entry.gameType) ? entry.gameType : 'ai',
   createdAt: Number(entry.createdAt) || Date.now(),
 })
 
@@ -77,9 +79,16 @@ const sortScores = (entries) =>
 
 const saveLocalEntry = (entry) => {
   const allEntries = readLocalEntries()
-  const key = `${entry.userId}_${entry.difficulty}`
-  const nextEntries = allEntries.filter((item) => `${item.userId}_${item.difficulty}` !== key)
-  const previous = allEntries.find((item) => `${item.userId}_${item.difficulty}` === key)
+  const difficultyKey = entry.gameType === 'ai' ? entry.difficulty : 'all'
+  const key = `${entry.userId}_${entry.gameType}_${difficultyKey}`
+  const nextEntries = allEntries.filter((item) => {
+    const itemDifficultyKey = item.gameType === 'ai' ? item.difficulty : 'all'
+    return `${item.userId}_${item.gameType}_${itemDifficultyKey}` !== key
+  })
+  const previous = allEntries.find((item) => {
+    const itemDifficultyKey = item.gameType === 'ai' ? item.difficulty : 'all'
+    return `${item.userId}_${item.gameType}_${itemDifficultyKey}` === key
+  })
 
   if (!isBetterEntry(entry, previous)) {
     return
@@ -100,7 +109,10 @@ const readLocalEntries = () => {
   }
 }
 
-const makeEntryId = (entry) => `${entry.userId}_${entry.difficulty}`
+const makeEntryId = (entry) => {
+  const difficultyKey = entry.gameType === 'ai' ? entry.difficulty : 'all'
+  return `${entry.userId}_${entry.gameType}_${difficultyKey}`
+}
 
 const writeRealtime = async (entry) => {
   const entryRef = ref(database, `leaderboard/${makeEntryId(entry)}`)
@@ -124,7 +136,7 @@ const callSubmitScore = async (entry) => {
   await callable(entry)
 }
 
-const readRealtime = async ({ limit = 10, difficulty = 'easy' } = {}) => {
+const readRealtime = async ({ limit = 10, difficulty = 'easy', gameType = 'ai' } = {}) => {
   const snapshot = await get(ref(database, 'leaderboard'))
 
   if (!snapshot.exists()) {
@@ -135,17 +147,23 @@ const readRealtime = async ({ limit = 10, difficulty = 'easy' } = {}) => {
   return sortScores(
     Object.values(raw)
       .map(normalizeEntry)
-      .filter((entry) => entry.difficulty === difficulty),
+      .filter((entry) =>
+        gameType === 'ai'
+          ? entry.gameType === 'ai' && entry.difficulty === difficulty
+          : entry.gameType === gameType,
+      ),
   ).slice(0, limit)
 }
 
-export const submitScore = async ({ name, score, durationMs, streak, difficulty, userId }) => {
+export const submitScore = async ({ name, score, durationMs, streak, difficulty, userId, gameType }) => {
+  const normalizedGameType = ALLOWED_GAME_TYPES.includes(gameType) ? gameType : 'ai'
   const entry = normalizeEntry({
     name,
     score,
     durationMs,
     streak,
-    difficulty,
+    difficulty: normalizedGameType === 'ai' ? difficulty : 'easy',
+    gameType: normalizedGameType,
     userId: userId || getOrCreateLocalUserId(),
     createdAt: Date.now(),
   })
@@ -169,21 +187,30 @@ export const submitScore = async ({ name, score, durationMs, streak, difficulty,
 }
 
 export const fetchTopScores = async (limit = 10) => {
-  return fetchTopScoresByDifficulty({ limit, difficulty: 'easy' })
+  return fetchTopScoresByDifficulty({ limit, difficulty: 'easy', gameType: 'ai' })
 }
 
-export const fetchTopScoresByDifficulty = async ({ limit = 10, difficulty = 'easy' } = {}) => {
+export const fetchTopScoresByDifficulty = async ({ limit = 10, difficulty = 'easy', gameType = 'ai' } = {}) => {
   const normalizedDifficulty = ALLOWED_DIFFICULTIES.includes(difficulty) ? difficulty : 'easy'
+  const normalizedGameType = ALLOWED_GAME_TYPES.includes(gameType) ? gameType : 'ai'
 
   if (hasFirebaseConfig && database) {
     try {
-      const scores = await readRealtime({ limit, difficulty: normalizedDifficulty })
+      const scores = await readRealtime({
+        limit,
+        difficulty: normalizedDifficulty,
+        gameType: normalizedGameType,
+      })
       return { mode: 'cloud', scores }
     } catch {
       return {
         mode: 'local',
         scores: sortScores(readLocalEntries())
-          .filter((entry) => entry.difficulty === normalizedDifficulty)
+          .filter((entry) =>
+            normalizedGameType === 'ai'
+              ? entry.gameType === 'ai' && entry.difficulty === normalizedDifficulty
+              : entry.gameType === normalizedGameType,
+          )
           .slice(0, limit),
       }
     }
@@ -192,7 +219,11 @@ export const fetchTopScoresByDifficulty = async ({ limit = 10, difficulty = 'eas
   return {
     mode: 'local',
     scores: sortScores(readLocalEntries())
-      .filter((entry) => entry.difficulty === normalizedDifficulty)
+      .filter((entry) =>
+        normalizedGameType === 'ai'
+          ? entry.gameType === 'ai' && entry.difficulty === normalizedDifficulty
+          : entry.gameType === normalizedGameType,
+      )
       .slice(0, limit),
   }
 }

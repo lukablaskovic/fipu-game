@@ -2,6 +2,7 @@ import { createRouter, createWebHistory } from "vue-router";
 
 const routes = [
   { path: "/", name: "home" },
+  { path: "/quiz", name: "quiz" },
   { path: "/leaderboard", name: "leaderboard" },
   { path: "/ai-intro", name: "ai-intro" },
   { path: "/ai-interest", name: "ai-interest" },
