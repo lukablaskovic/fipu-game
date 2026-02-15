@@ -1,0 +1,161 @@
+<!doctype html>
+<html lang="hr">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>FIPU - Informacije o studiju</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+    <style>
+      @media only screen and (max-width: 620px) {
+        .container {
+          width: 100% !important;
+        }
+        .mobile-padding {
+          padding: 20px 16px !important;
+        }
+        .stack-column {
+          display: block !important;
+          width: 100% !important;
+          max-width: 100% !important;
+        }
+        .stack-column-cell {
+          padding-left: 0 !important;
+          padding-right: 0 !important;
+        }
+        .stack-image {
+          padding-bottom: 10px !important;
+        }
+      }
+    </style>
+  </head>
+  <body style="margin: 0; padding: 0; background: #ffffff; font-family: 'Montserrat', 'Segoe UI', Arial, sans-serif; color: #374151;">
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background: #ffffff; padding: 28px 12px;">
+      <tr>
+        <td align="center">
+          <table class="container" role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="max-width: 680px; background: #ffffff; border: 1px solid #e5e7eb; border-radius: 16px; overflow: hidden;">
+            <tr>
+              <td style="padding: 18px 16px; text-align: center;">
+                <img
+                  src="{{logo_image_url}}"
+                  alt="FIPU i UNIPU logo"
+                  width="280"
+                  style="display: inline-block; width: 100%; max-width: 280px; height: auto; border: 0;"
+                />
+              </td>
+            </tr>
+
+            <tr>
+              <td style="background: #ffffff; text-align: center; padding: 2px 16px 16px;">
+                <p style="margin: 0; font-size: 24px; line-height: 1.3; font-weight: 800; color: #50d2fe;">Fakultet informatike u Puli</p>
+                <p style="margin: 4px 0 0; font-size: 14px; line-height: 1.5; color: #50d2fe;">Sveučilište Jurja Dobrile u Puli</p>
+              </td>
+            </tr>
+
+            <tr>
+              <td class="mobile-padding" style="padding: 24px 22px 8px;">
+                <p style="margin: 0 0 14px; font-size: 16px; line-height: 1.65; color: #374151;">Bok, {{to_email}}</p>
+                <p style="margin: 0 0 14px; font-size: 16px; line-height: 1.65; color: #374151;">
+                  Hvala ti na interesu za naš studij i na igranju igrice. U nastavku ćemo malo detaljnije o nama,
+                  a za sve dodatne informacije i pitanja uvijek nas možeš kontaktirati.
+                </p>
+
+                <h2 style="margin: 20px 0 10px; font-size: 18px; line-height: 1.4; color: #50d2fe;">Osnovni podaci o FIPU</h2>
+                <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin: 0 0 14px; border: 1px solid #d5f4fe; border-radius: 12px;">
+                  <tr>
+                    <td class="stack-column stack-column-cell stack-image" width="44%" style="width: 44%; padding: 12px;">
+                      <a href="{{study_photo_01_url}}" target="_blank" rel="noopener noreferrer" style="text-decoration: none;">
+                        <img src="{{study_photo_01_url}}" alt="FIPU fotografija 1" width="100%" style="display: block; width: 100%; max-width: 100%; height: auto; border: 1px solid #d5f4fe; border-radius: 10px;" />
+                      </a>
+                    </td>
+                    <td class="stack-column stack-column-cell" width="56%" style="width: 56%; padding: 12px 14px; vertical-align: middle;">
+                      <p style="margin: 0; font-size: 15px; line-height: 1.68; color: #374151;">
+                        Fakultet informatike u Puli sastavnica je UNIPU - Sveučilišta Jurja Dobrile u Puli,
+                        registrirana na Trgovačkom sudu u Pazinu 17. svibnja 2018. godine. FIPU je proizašao iz Odjela
+                        za informacijsko-komunikacijske tehnologije (OIKT) koji je osnovan s početkom akademske godine 2015./2016.
+                      </p>
+                    </td>
+                  </tr>
+                </table>
+
+                <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin: 0 0 16px; border: 1px solid #d5f4fe; border-radius: 12px;">
+                  <tr>
+                    <td class="stack-column stack-column-cell" width="56%" style="width: 56%; padding: 12px 14px; vertical-align: middle;">
+                      <p style="margin: 0; font-size: 15px; line-height: 1.68; color: #374151;">
+                        Na studiju Informatike studenti FIPU uče programirati u programskim jezicima budućnosti. Uz web,
+                        mobile development i data science, upoznaju i aktualne tehnologije kao što su AI, blockchain,
+                        IoT i robotika. Tehnologije umjetne inteligencije, strojnoga učenja, interneta stvari i računarstva
+                        u oblaku osnova su modernog poslovanja, pa je potražnja za informatičarima nikad veća.
+                      </p>
+                    </td>
+                    <td class="stack-column stack-column-cell stack-image" width="44%" style="width: 44%; padding: 12px;">
+                      <a href="{{study_photo_02_url}}" target="_blank" rel="noopener noreferrer" style="text-decoration: none;">
+                        <img src="{{study_photo_02_url}}" alt="FIPU fotografija 2" width="100%" style="display: block; width: 100%; max-width: 100%; height: auto; border: 1px solid #d5f4fe; border-radius: 10px;" />
+                      </a>
+                    </td>
+                  </tr>
+                </table>
+
+                <h2 style="margin: 22px 0 10px; font-size: 18px; line-height: 1.4; color: #50d2fe;">Misija FIPU je sljedeća:</h2>
+                <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin: 0 0 16px; border: 1px solid #d5f4fe; border-radius: 12px;">
+                  <tr>
+                    <td class="stack-column stack-column-cell stack-image" width="44%" style="width: 44%; padding: 12px;">
+                      <a href="{{study_photo_03_url}}" target="_blank" rel="noopener noreferrer" style="text-decoration: none;">
+                        <img src="{{study_photo_03_url}}" alt="FIPU fotografija 3" width="100%" style="display: block; width: 100%; max-width: 100%; height: auto; border: 1px solid #d5f4fe; border-radius: 10px;" />
+                      </a>
+                    </td>
+                    <td class="stack-column stack-column-cell" width="56%" style="width: 56%; padding: 12px 14px; vertical-align: middle;">
+                      <blockquote style="margin: 0; padding: 0 0 0 12px; border-left: 4px solid #50d2fe; font-size: 15px; line-height: 1.66; color: #374151;">
+                        FIPU je posvećen izvrsnosti u znanstvenom radu i nastavi, pružajući visokokvalitetno obrazovanje koje
+                        integrira suvremene tehnologije i praktične vještine. Snažno podržavamo unaprjeđenje studentskog iskustva
+                        i zadovoljstva studenata, te promičemo inovacije u obrazovnom procesu i praktičnu primjenu znanja u realnom svijetu.
+                      </blockquote>
+                    </td>
+                  </tr>
+                </table>
+
+                <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin: 0 0 14px; border: 1px solid #d5f4fe; border-radius: 12px;">
+                  <tr>
+                    <td class="stack-column stack-column-cell" width="56%" style="width: 56%; padding: 12px 14px; vertical-align: middle;">
+                      <p style="margin: 0; font-size: 15px; line-height: 1.68; color: #374151;">
+                        Na FIPU studira 400-tinjak studenata. Studij godišnje završava 50-ak prvostupnika i diplomiranih
+                        informatičara. Studij je usmjeren na suvremena znanstvena dostignuća, tehnička znanja i vještine.
+                      </p>
+                    </td>
+                    <td class="stack-column stack-column-cell stack-image" width="44%" style="width: 44%; padding: 12px;">
+                      <a href="{{study_photo_04_url}}" target="_blank" rel="noopener noreferrer" style="text-decoration: none;">
+                        <img src="{{study_photo_04_url}}" alt="FIPU fotografija 4" width="100%" style="display: block; width: 100%; max-width: 100%; height: auto; border: 1px solid #d5f4fe; border-radius: 10px;" />
+                      </a>
+                    </td>
+                  </tr>
+                </table>
+
+                <p style="margin: 0 0 14px; font-size: 15px; line-height: 1.68; color: #374151;">
+                  Studenti FIPU za naše studije Informatike vole reći: motivirani smo jer vidimo vašu visoku razinu
+                  entuzijazma i pozitivne energije.
+                </p>
+              </td>
+            </tr>
+
+            <tr>
+              <td style="padding: 6px 22px 24px;">
+                <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="border: 1px solid #e5e7eb; border-radius: 12px; background: #ffffff;">
+                  <tr>
+                    <td style="padding: 14px 14px 12px;">
+                      <p style="margin: 0 0 10px; font-size: 16px; font-weight: 700; color: #50d2fe;">Kontakt:</p>
+                      <p style="margin: 0 0 6px; font-size: 14px; color: #374151;">&#128205; <strong>Adresa:</strong> Ulica Alda Negrija 6, 52100 Pula, Hrvatska</p>
+                      <p style="margin: 0 0 6px; font-size: 14px; color: #374151;">&#127760; <strong>Web:</strong> <a href="https://fipu.unipu.hr/fipu" target="_blank" rel="noopener noreferrer" style="color: #50d2fe; text-decoration: underline;">https://fipu.unipu.hr/fipu</a></p>
+                      <p style="margin: 0 0 6px; font-size: 14px; color: #374151;">&#9742; <strong>Telefon:</strong> 052 877-438</p>
+                      <p style="margin: 0; font-size: 14px; color: #374151;">&#9993; <strong>Email:</strong> <a href="mailto:fipu-ured@unipu.hr" style="color: #50d2fe; text-decoration: underline;">fipu-ured@unipu.hr</a></p>
+                    </td>
+                  </tr>
+                </table>
+              </td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+    </table>
+  </body>
+</html>

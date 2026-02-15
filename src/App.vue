@@ -1,9 +1,23 @@
 <script setup>
-import { computed, onBeforeUnmount, onMounted, ref } from "vue";
+import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
+import { useRoute, useRouter } from "vue-router";
 import { aiTrainFrames, aiTrainLabels } from "./data/aiTrainImages";
-import { fetchTopScores, submitScore } from "./services/leaderboard";
 import { submitInterestEmail } from "./services/leads";
+import { sendOutroEmail } from "./services/email";
+import {
+  fetchTopScoresByDifficulty,
+  getOrCreateLocalUserId,
+  submitScore,
+} from "./services/leaderboard";
 import { generateRandomNickname } from "./utils/randomNickname";
+import NicknameModal from "./components/modals/NicknameModal.vue";
+import AiIntroPage from "./components/pages/AiIntroPage.vue";
+import AiOutroPage from "./components/pages/AiOutroPage.vue";
+import AiPlayingPage from "./components/pages/AiPlayingPage.vue";
+import AiInterestPage from "./components/pages/AiInterestPage.vue";
+import ComingSoonPage from "./components/pages/ComingSoonPage.vue";
+import HomePage from "./components/pages/HomePage.vue";
+import LeaderboardPage from "./components/pages/LeaderboardPage.vue";
 
 const gameTypes = [
   {
@@ -12,47 +26,61 @@ const gameTypes = [
     description:
       "Pogledaj kako je to trenirati AI model da raspoznaje slike. Hoćeš li ga uspjeti natrenirati na 100% točnosti?",
   },
-  {
-    id: "it",
-    title: "IT kviz",
-    description: "IT kviz opće kulture. Bez ovoga ne dodjeljujemo diplomu 😀",
-  },
 ];
 
 const gameCardGifs = {
   ai: "/ai-train-robot-gif.gif",
-  it: "/ai-quiz-robot-gif.gif",
 };
 
 const difficultyOptions = [
-  { id: "easy", label: "Easy" },
-  { id: "hard", label: "Hard" },
+  { id: "easy", label: "Easy (60s)" },
+  { id: "hard", label: "Hard (40s)" },
 ];
 
 const aiConfigs = {
   easy: {
     totalRounds: 20,
     roundDurationMs: 3000,
+    sessionDurationMs: 60000,
     optionCount: 4,
-    feedbackMs: 520,
+    feedbackMs: 0,
     label: "Easy",
   },
   hard: {
     totalRounds: 20,
     roundDurationMs: 1500,
+    sessionDurationMs: 40000,
     optionCount: 4,
-    feedbackMs: 420,
+    feedbackMs: 0,
     label: "Hard",
   },
 };
 const aiQuizSampleSize = 20;
-const aiQuizDurationMs = 45000;
+
+const NICKNAME_STORAGE_KEY = "fipu-nickname";
+const route = useRoute();
+const router = useRouter();
+
+const getStoredNickname = () => {
+  if (typeof window === "undefined") return "";
+  return window.localStorage.getItem(NICKNAME_STORAGE_KEY) ?? "";
+};
+
+const persistNickname = (value) => {
+  if (typeof window === "undefined") return;
+  if (value) {
+    window.localStorage.setItem(NICKNAME_STORAGE_KEY, value);
+    return;
+  }
+
+  window.localStorage.removeItem(NICKNAME_STORAGE_KEY);
+};
 
 const phase = ref("home");
 const selectedGameType = ref("ai");
 const selectedDifficulty = ref("easy");
 const activeDifficulty = ref("easy");
-const nickname = ref("");
+const nickname = ref(getStoredNickname());
 const nicknameDraft = ref("");
 const isNicknameModalOpen = ref(false);
 const isAutoNameRevealVisible = ref(false);
@@ -62,7 +90,9 @@ const autoNameRevealShowName = ref(false);
 const leaderboard = ref([]);
 const leaderboardLoading = ref(false);
 const leaderboardMode = ref("local");
+const leaderboardDifficulty = ref("easy");
 const saveStatus = ref("idle");
+const localUserId = ref(getOrCreateLocalUserId());
 
 const roundNumber = ref(0);
 const samplesSeen = ref(0);
@@ -79,7 +109,7 @@ const hitEffect = ref("");
 const hitEffectToken = ref(0);
 const sessionDurationMs = ref(0);
 const sessionStartMs = ref(0);
-const sessionTimeLeftMs = ref(aiQuizDurationMs);
+const sessionTimeLeftMs = ref(aiConfigs.easy.sessionDurationMs);
 const remainingFrames = ref([]);
 const selectedSessionFrames = ref([]);
 const aiIntroPage = ref(0);
@@ -92,10 +122,12 @@ const aiOutroTouchDeltaX = ref(0);
 const aiOutroTotalPages = 4;
 const outroEmail = ref("");
 const outroEmailStatus = ref("idle");
+const shouldShowAiInterestToast = ref(false);
 const isStartCountdownVisible = ref(false);
 const startCountdownText = ref("");
 const isGameOverCelebrationVisible = ref(false);
 const gameOverCelebrationToken = ref(0);
+const isFirstAiTrainingGameCompleted = ref(false);
 
 const activeAiConfig = computed(() => aiConfigs[activeDifficulty.value]);
 const selectedAiConfig = computed(() => aiConfigs[selectedDifficulty.value]);
@@ -112,8 +144,9 @@ const totalRounds = computed(
 );
 
 const sessionTimerPercent = computed(() => {
-  const elapsed = aiQuizDurationMs - sessionTimeLeftMs.value;
-  const ratio = elapsed / aiQuizDurationMs;
+  const sessionLimitMs = activeAiConfig.value.sessionDurationMs;
+  const elapsed = sessionLimitMs - sessionTimeLeftMs.value;
+  const ratio = elapsed / sessionLimitMs;
   return Math.max(0, Math.min(100, ratio * 100));
 });
 
@@ -164,10 +197,8 @@ const revealedNameClass = computed(() => {
   return "text-[clamp(1.3rem,6.2vw,2.15rem)] tracking-[0.08em]";
 });
 
-const finalLine = computed(
-  () =>
-    `Your data trained the AI to ${modelAccuracy.value}%. Imagine building real AI here.`,
-);
+const isValidEmail = (value) => /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/i.test(value);
+
 const outroEmailStatusText = computed(() => {
   if (outroEmailStatus.value === "saving") return "Spremam email...";
   if (outroEmailStatus.value === "saved")
@@ -193,6 +224,19 @@ let autoNameRevealPauseId = 0;
 let autoNameRevealFinishId = 0;
 let gameOverCelebrationTimeoutId = 0;
 let roundResolved = false;
+let scrollResetTimeoutId = 0;
+
+const handleBeforeUnload = (event) => {
+  const isFirstAiGameInProgress =
+    phase.value === "ai-playing" && !isFirstAiTrainingGameCompleted.value;
+
+  if (!isFirstAiGameInProgress) {
+    return;
+  }
+
+  event.preventDefault();
+  event.returnValue = "";
+};
 
 const syncFrameTimeLeft = () => {
   frameTimeLeftMs.value = Math.max(0, roundDeadlineMs - Date.now());
@@ -203,10 +247,11 @@ const syncSessionTimeLeft = () => {
 };
 
 const startSessionTimer = () => {
+  const sessionLimitMs = activeAiConfig.value.sessionDurationMs;
   window.clearInterval(sessionTickId);
   window.clearTimeout(sessionTimeoutId);
 
-  sessionDeadlineMs = Date.now() + aiQuizDurationMs;
+  sessionDeadlineMs = Date.now() + sessionLimitMs;
   syncSessionTimeLeft();
 
   sessionTickId = window.setInterval(() => {
@@ -218,7 +263,7 @@ const startSessionTimer = () => {
     if (phase.value === "ai-playing") {
       void finishAiTraining();
     }
-  }, aiQuizDurationMs);
+  }, sessionLimitMs);
 };
 
 const clearTimers = () => {
@@ -233,6 +278,7 @@ const clearTimers = () => {
   window.clearTimeout(autoNameRevealPauseId);
   window.clearTimeout(autoNameRevealFinishId);
   window.clearTimeout(gameOverCelebrationTimeoutId);
+  window.clearTimeout(scrollResetTimeoutId);
 
   roundTimeoutId = 0;
   frameTickId = 0;
@@ -245,6 +291,7 @@ const clearTimers = () => {
   autoNameRevealPauseId = 0;
   autoNameRevealFinishId = 0;
   gameOverCelebrationTimeoutId = 0;
+  scrollResetTimeoutId = 0;
   roundDeadlineMs = 0;
   sessionDeadlineMs = 0;
   isStartCountdownVisible.value = false;
@@ -273,7 +320,10 @@ const refreshLeaderboard = async () => {
   leaderboardLoading.value = true;
 
   try {
-    const { mode, scores } = await fetchTopScores(8);
+    const { mode, scores } = await fetchTopScoresByDifficulty({
+      limit: 8,
+      difficulty: leaderboardDifficulty.value,
+    });
     leaderboardMode.value = mode;
     leaderboard.value = scores;
   } finally {
@@ -349,7 +399,7 @@ const resetAiSession = () => {
   refillRemainingFrames();
 
   frameTimeLeftMs.value = activeAiConfig.value.roundDurationMs;
-  sessionTimeLeftMs.value = aiQuizDurationMs;
+  sessionTimeLeftMs.value = activeAiConfig.value.sessionDurationMs;
   sessionDurationMs.value = 0;
 };
 
@@ -360,8 +410,10 @@ const finishAiTraining = async () => {
 
   clearTimers();
   aiOutroPage.value = 0;
+  isFirstAiTrainingGameCompleted.value = true;
   outroEmail.value = "";
   outroEmailStatus.value = "idle";
+  shouldShowAiInterestToast.value = false;
   phase.value = "ai-finished";
   sessionDurationMs.value = Math.max(0, Date.now() - sessionStartMs.value);
   isGameOverCelebrationVisible.value = true;
@@ -378,6 +430,8 @@ const finishAiTraining = async () => {
       score: modelAccuracy.value,
       durationMs: sessionDurationMs.value,
       streak: bestStreak.value,
+      difficulty: activeDifficulty.value,
+      userId: localUserId.value,
     });
 
     leaderboardMode.value = mode;
@@ -398,7 +452,10 @@ const scheduleNextRound = () => {
       return;
     }
 
-    if (samplesSeen.value >= totalRounds.value || sessionTimeLeftMs.value <= 0) {
+    if (
+      samplesSeen.value >= totalRounds.value ||
+      sessionTimeLeftMs.value <= 0
+    ) {
       void finishAiTraining();
       return;
     }
@@ -513,21 +570,41 @@ const startRound = () => {
 
 const openHome = () => {
   clearTimers();
+  if (route.path !== "/") {
+    void router.push("/");
+    return;
+  }
+
   phase.value = "home";
 };
 
 const openLeaderboard = async () => {
+  if (route.path !== "/leaderboard") {
+    await router.push("/leaderboard");
+    return;
+  }
+
   phase.value = "leaderboard";
   await refreshLeaderboard();
 };
 
+const setLeaderboardDifficulty = async (difficulty) => {
+  leaderboardDifficulty.value = difficulty === "hard" ? "hard" : "easy";
+  await refreshLeaderboard();
+};
+
 const openAiIntro = () => {
+  if (route.path !== "/ai-intro") {
+    void router.push("/ai-intro");
+    return;
+  }
+
   aiIntroPage.value = 0;
   phase.value = "ai-intro";
   window.requestAnimationFrame(scrollPageToTop);
 };
 
-const scrollPageToTop = () => {
+const scrollDocumentToTop = () => {
   window.scrollTo({ top: 0, left: 0, behavior: "auto" });
 
   const scrollingRoot = document.scrollingElement;
@@ -540,6 +617,12 @@ const scrollPageToTop = () => {
   document.documentElement.scrollLeft = 0;
   document.body.scrollTop = 0;
   document.body.scrollLeft = 0;
+};
+
+const scrollPageToTop = () => {
+  scrollDocumentToTop();
+  window.clearTimeout(scrollResetTimeoutId);
+  scrollResetTimeoutId = window.setTimeout(scrollDocumentToTop, 120);
 };
 
 const continueStartingSelectedGame = () => {
@@ -583,12 +666,14 @@ const confirmNicknameAndStartGame = () => {
   const cleaned = nicknameDraft.value.trim().replace(/\s+/g, " ");
   if (cleaned) {
     nickname.value = cleaned.slice(0, 24);
+    persistNickname(nickname.value);
     isNicknameModalOpen.value = false;
     continueStartingSelectedGame();
     return;
   }
 
   nickname.value = generateRandomNickname();
+  persistNickname(nickname.value);
   revealGeneratedNameAndContinue();
 };
 
@@ -700,10 +785,23 @@ const onAiOutroTouchEnd = () => {
 
 const submitOutroEmail = async () => {
   const normalizedEmail = outroEmail.value.trim().toLowerCase();
-  const isValid = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/i.test(normalizedEmail);
+  const hasEmail = Boolean(normalizedEmail);
 
-  if (!isValid) {
+  if (hasEmail && !isValidEmail(normalizedEmail)) {
     outroEmailStatus.value = "invalid";
+    return;
+  }
+
+  shouldShowAiInterestToast.value = false;
+
+  if (!hasEmail) {
+    outroEmailStatus.value = "idle";
+    if (route.path !== "/ai-interest") {
+      await router.push("/ai-interest");
+    } else {
+      phase.value = "ai-interest";
+    }
+    window.requestAnimationFrame(scrollPageToTop);
     return;
   }
 
@@ -714,16 +812,37 @@ const submitOutroEmail = async () => {
       email: normalizedEmail,
       source: "ai-quiz-outro",
     });
+    await sendOutroEmail({
+      toEmail: normalizedEmail,
+      playerName: currentPlayerName.value,
+      modelAccuracy: modelAccuracy.value,
+      correctCount: correctCount.value,
+      totalRounds: totalRounds.value,
+      difficulty: activeAiConfig.value.label,
+    });
     outroEmailStatus.value = "saved";
+    shouldShowAiInterestToast.value = true;
     outroEmail.value = "";
+    if (route.path !== "/ai-interest") {
+      await router.push("/ai-interest");
+    } else {
+      phase.value = "ai-interest";
+    }
+    window.requestAnimationFrame(scrollPageToTop);
   } catch {
     outroEmailStatus.value = "error";
   }
 };
 
+const closeAiInterestPage = () => {
+  shouldShowAiInterestToast.value = false;
+  closeAiOutro();
+};
+
 const closeAiOutro = () => {
   outroEmail.value = "";
   outroEmailStatus.value = "idle";
+  shouldShowAiInterestToast.value = false;
   openHome();
 };
 
@@ -745,27 +864,71 @@ const optionButtonClass = (label) => {
 };
 
 onMounted(async () => {
-  await refreshLeaderboard();
+  window.addEventListener("beforeunload", handleBeforeUnload);
 });
 
 onBeforeUnmount(() => {
+  window.removeEventListener("beforeunload", handleBeforeUnload);
   clearTimers();
 });
+
+watch(
+  () => route.path,
+  async (path) => {
+    if (path === "/") {
+      clearTimers();
+      phase.value = "home";
+      return;
+    }
+
+    if (path === "/leaderboard") {
+      phase.value = "leaderboard";
+      await refreshLeaderboard();
+      return;
+    }
+
+    if (path === "/ai-intro") {
+      aiIntroPage.value = 0;
+      phase.value = "ai-intro";
+      window.requestAnimationFrame(scrollPageToTop);
+      return;
+    }
+
+    if (path === "/ai-interest") {
+      phase.value = "ai-interest";
+      window.requestAnimationFrame(scrollPageToTop);
+      return;
+    }
+
+    await router.replace("/");
+  },
+  { immediate: true },
+);
 </script>
 
 <template>
-  <main class="relative min-h-screen overflow-hidden bg-sky-100 text-slate-900">
+  <main
+    class="relative min-h-screen overflow-hidden text-slate-900"
+    :class="phase === 'ai-interest' ? 'bg-slate-950' : 'bg-sky-100'">
     <div
+      v-if="phase !== 'ai-interest'"
       class="pointer-events-none absolute inset-0 bg-[radial-gradient(circle,rgba(14,165,233,0.24)_1.2px,transparent_1.2px),linear-gradient(180deg,#e6f6ff_0%,#d4eeff_100%)] [background-size:18px_18px,100%_100%]" />
     <div
+      v-if="phase !== 'ai-interest'"
       class="pointer-events-none absolute -left-28 top-4 hidden h-80 w-80 rounded-full bg-cyan-300/45 blur-3xl animate-orbital md:block" />
     <div
+      v-if="phase !== 'ai-interest'"
       class="pointer-events-none absolute -right-20 bottom-8 h-72 w-72 rounded-full bg-sky-200/50 blur-3xl animate-orbital-delayed" />
 
     <section
-      class="relative z-10 mx-auto flex min-h-screen w-full max-w-6xl flex-col px-4 pb-0 pt-5 md:px-8 md:pb-8">
+      class="relative z-10 flex min-h-screen w-full flex-col"
+      :class="
+        phase === 'ai-interest'
+          ? 'p-0'
+          : 'mx-auto max-w-6xl px-4 pb-0 pt-5 md:px-8 md:pb-8'
+      ">
       <header
-        v-if="phase !== 'ai-playing'"
+        v-if="phase !== 'ai-playing' && phase !== 'ai-interest'"
         class="mb-4 flex h-32 flex-col items-center justify-center p-0 md:mb-3 md:mx-auto md:h-36 md:w-[88%] lg:h-40 lg:w-[82%]">
         <img
           src="/fipu-games-logo.png"
@@ -774,700 +937,112 @@ onBeforeUnmount(() => {
       </header>
 
       <Transition name="page-swap" mode="out-in">
-        <section
+        <HomePage
           v-if="phase === 'home'"
           key="home"
-          class="mx-auto mb-6 w-full max-w-3xl md:mb-8">
-          <article
-            class="rounded-3xl border border-cyan-200/70 bg-white/90 p-5 shadow-[0_18px_50px_rgba(80,210,254,0.18)] backdrop-blur md:p-6">
-            <div
-              class="mb-5 rounded-2xl border border-cyan-200/70 bg-cyan-50/70 p-4">
-              <h2
-                class="font-title text-3xl font-bold text-cyan-900 md:text-4xl">
-                Bok!
-              </h2>
-              <p
-                class="mt-2 text-sm leading-relaxed text-slate-800 md:text-base">
-                Hvala ti što si skenirao ovaj QR kod. Želimo ti predstaviti
-                <b>Fakultet informatike u Puli</b> — tko smo, čime se bavimo i
-                što možeš očekivati tijekom studija.
-              </p>
-              <p
-                class="mt-3 text-sm leading-relaxed text-slate-800 md:text-base">
-                Odaberi jednu od dvije igrice u nastavku. Usput ćeš saznati
-                nešto o našem fakultetu, umjetnoj inteligenciji, i IT-u
-                općenito, a ako uspješno prijeđeš <i>Hard razinu</i> jedne
-                igrice, čeka te i mali poklon!
-              </p>
-            </div>
+          :game-types="gameTypes"
+          :game-card-gifs="gameCardGifs"
+          :difficulty-options="difficultyOptions"
+          :selected-game-type="selectedGameType"
+          :selected-difficulty="selectedDifficulty"
+          @select-game-type="selectedGameType = $event"
+          @select-difficulty="selectedDifficulty = $event"
+          @start-selected-game="startSelectedGame"
+          @open-leaderboard="openLeaderboard" />
 
-            <p
-              class="inline-flex items-center rounded-full bg-cyan-100 px-3 py-1 text-xs font-semibold uppercase tracking-[0.2em] text-cyan-800">
-              Odaberi igru i saznaj više o FIPU
-            </p>
-
-            <div class="mt-4 grid gap-3">
-              <button
-                v-for="game in gameTypes"
-                :key="game.id"
-                type="button"
-                class="cursor-pointer rounded-2xl border px-4 py-3 text-left transition"
-                :class="
-                  selectedGameType === game.id
-                    ? 'border-cyan-500 bg-cyan-100/80'
-                    : 'border-cyan-200 bg-white hover:bg-cyan-50'
-                "
-                @click="selectedGameType = game.id">
-                <div class="flex items-center justify-between gap-3">
-                  <div class="min-w-0 flex-1">
-                    <p class="font-title text-lg font-bold text-cyan-900">
-                      {{ game.title }}
-                    </p>
-                    <p class="mt-1 text-sm text-slate-700">
-                      {{ game.description }}
-                    </p>
-                  </div>
-                  <img
-                    v-if="gameCardGifs[game.id]"
-                    :src="gameCardGifs[game.id]"
-                    :alt="`${game.title} gif`"
-                    class="h-16 w-16 shrink-0 rounded-xl object-contain" />
-                </div>
-              </button>
-            </div>
-
-            <div
-              class="mt-5 rounded-2xl border border-cyan-200/70 bg-cyan-50/75 p-4">
-              <div class="flex gap-2">
-                <button
-                  v-for="difficulty in difficultyOptions"
-                  :key="difficulty.id"
-                  type="button"
-                  class="cursor-pointer flex-1 rounded-xl border px-4 py-2 text-center text-sm font-semibold uppercase tracking-[0.08em] transition"
-                  :class="
-                    difficulty.id === 'easy'
-                      ? selectedDifficulty === difficulty.id
-                        ? 'border-emerald-600 bg-emerald-200 text-emerald-900'
-                        : 'border-emerald-300 bg-white text-emerald-800 hover:bg-emerald-100'
-                      : selectedDifficulty === difficulty.id
-                        ? 'border-rose-600 bg-rose-200 text-rose-900'
-                        : 'border-rose-300 bg-white text-rose-800 hover:bg-rose-100'
-                  "
-                  @click="selectedDifficulty = difficulty.id">
-                  {{ difficulty.label }}
-                </button>
-              </div>
-            </div>
-
-            <button
-              type="button"
-              class="cursor-pointer mt-5 w-full rounded-2xl bg-[#50d2fe] px-5 py-3 text-center font-title text-base font-bold uppercase tracking-[0.12em] text-slate-950 transition hover:-translate-y-0.5 hover:bg-cyan-200"
-              @click="startSelectedGame">
-              Započni igru
-            </button>
-
-            <button
-              type="button"
-              class="cursor-pointer mt-3 mb-5 w-full rounded-2xl border border-cyan-500 bg-white px-5 py-3 text-center font-title text-base font-bold uppercase tracking-[0.12em] text-cyan-900 transition hover:bg-cyan-50"
-              @click="openLeaderboard">
-              Leaderboard
-            </button>
-          </article>
-        </section>
-
-        <section
+        <LeaderboardPage
           v-else-if="phase === 'leaderboard'"
           key="leaderboard"
-          class="mx-auto w-full max-w-3xl">
-          <article
-            class="rounded-3xl border border-cyan-200/70 bg-white/90 p-4 shadow-[0_14px_40px_rgba(80,210,254,0.16)] md:p-5">
-            <div class="flex items-center justify-between">
-              <h2 class="font-title text-xl font-bold text-cyan-900">
-                Leaderboard
-              </h2>
-              <span class="text-xs uppercase tracking-[0.14em] text-cyan-700"
-                >{{ leaderboard.length }} listed</span
-              >
-            </div>
+          :leaderboard="leaderboard"
+          :difficulty="leaderboardDifficulty"
+          :leaderboard-loading="leaderboardLoading"
+          @set-difficulty="setLeaderboardDifficulty"
+          @open-home="openHome" />
 
-            <p v-if="leaderboardLoading" class="mt-4 text-sm text-cyan-800">
-              Loading models...
-            </p>
-            <p
-              v-else-if="leaderboard.length === 0"
-              class="mt-4 text-sm text-cyan-800">
-              Još nema rezultata.
-            </p>
-
-            <ol v-else class="mt-4 space-y-2">
-              <li
-                v-for="(entry, index) in leaderboard"
-                :key="`${entry.name}-${entry.createdAt}-${index}`"
-                class="flex items-center justify-between rounded-xl border border-cyan-200 bg-cyan-50/80 px-3 py-2">
-                <span class="text-sm font-semibold text-slate-800"
-                  >{{ index + 1 }}. {{ entry.name }}</span
-                >
-                <span class="font-title text-lg font-bold text-cyan-800"
-                  >{{ entry.score }}%</span
-                >
-              </li>
-            </ol>
-
-            <button
-              type="button"
-              class="cursor-pointer mt-6 rounded-2xl bg-[#50d2fe] px-5 py-3 font-title text-base font-bold uppercase tracking-[0.12em] text-slate-950 transition hover:-translate-y-0.5 hover:bg-cyan-200"
-              @click="openHome">
-              Natrag na odabir
-            </button>
-          </article>
-        </section>
-
-        <section
+        <AiIntroPage
           v-else-if="phase === 'ai-intro'"
           key="ai-intro"
-          class="mx-auto w-full max-w-md">
-          <article
-            class="overflow-hidden rounded-3xl border border-cyan-200/70 bg-white/90 shadow-[0_18px_50px_rgba(80,210,254,0.18)] backdrop-blur">
-            <div
-              class="overflow-hidden"
-              @touchstart="onAiIntroTouchStart"
-              @touchmove="onAiIntroTouchMove"
-              @touchend="onAiIntroTouchEnd">
-              <div
-                class="flex transition-transform duration-300 ease-out"
-                :style="{ transform: `translateX(-${aiIntroPage * 100}%)` }">
-                <section class="w-full shrink-0 p-4 sm:p-5">
-                  <img
-                    src="/robot-wave-gif.gif"
-                    alt="AI robot"
-                    class="mx-auto h-52 w-full max-w-xs rounded-2xl object-contain sm:h-56" />
-                  <div
-                    class="mt-4 min-h-28 rounded-2xl border border-cyan-200 bg-cyan-50/75 p-3 text-sm leading-relaxed text-slate-700">
-                    <h3 class="font-title text-xl font-bold text-cyan-900">
-                      Umjetna inteligencija
-                    </h3>
-                    <p class="mt-2">
-                      Umjetna inteligencija, odnosno AI, tema je o kojoj danas
-                      svi pričaju. Pomaže nam u učenju, pisanju zadaća,
-                      stvaranju slika, glazbe i videozapisa, pa čak i u mnogo
-                      kompleksnijim stvarima, poput razvoja novih lijekova.
-                    </p>
-                  </div>
-                  <button
-                    type="button"
-                    class="cursor-pointer mt-4 w-full rounded-2xl bg-[#50d2fe] px-5 py-3 font-title text-base font-bold uppercase tracking-[0.12em] text-slate-950 transition hover:-translate-y-0.5 hover:bg-cyan-200"
-                    @click="nextAiIntroPage">
-                    Dalje
-                  </button>
-                </section>
+          class="mb-6 md:mb-10"
+          :ai-intro-page="aiIntroPage"
+          :ai-intro-total-pages="aiIntroTotalPages"
+          @next-page="nextAiIntroPage"
+          @set-page="setAiIntroPage"
+          @open-home="openHome"
+          @begin-ai-training="beginAiTraining"
+          @touch-start="onAiIntroTouchStart"
+          @touch-move="onAiIntroTouchMove"
+          @touch-end="onAiIntroTouchEnd" />
 
-                <section class="w-full shrink-0 p-4 sm:p-5">
-                  <img
-                    src="/ai-gpt-gif.gif"
-                    alt="AI model"
-                    class="mx-auto h-52 w-full max-w-xs rounded-2xl object-contain sm:h-56" />
-                  <div
-                    class="mt-4 min-h-28 rounded-2xl border border-cyan-200 bg-cyan-50/75 p-3 text-sm leading-relaxed text-slate-700">
-                    <h3 class="font-title text-xl font-bold text-cyan-900">
-                      Što je ustvari umjetna inteligencija?
-                    </h3>
-                    <p class="mt-2">
-                      Pojednostavljeno rečeno, umjetnu inteligenciju možemo
-                      zamisliti kao složeni matematički model koji, oslanjajući
-                      se na veliku količinu podataka koje je „vidio” te snažnu
-                      računalnu obradu, nastoji predvidjeti najbolji mogući
-                      rezultat ili odgovor na neki upit.
-                    </p>
-                  </div>
-                  <button
-                    type="button"
-                    class="cursor-pointer mt-4 w-full rounded-2xl bg-[#50d2fe] px-5 py-3 font-title text-base font-bold uppercase tracking-[0.12em] text-slate-950 transition hover:-translate-y-0.5 hover:bg-cyan-200"
-                    @click="nextAiIntroPage">
-                    Dalje
-                  </button>
-                </section>
-
-                <section class="w-full shrink-0 p-4 sm:p-5">
-                  <img
-                    src="/ai-walk-gif.gif"
-                    alt="AI uči hodati"
-                    class="mx-auto h-52 w-full max-w-xs rounded-2xl object-contain sm:h-56" />
-                  <div
-                    class="mt-4 min-h-28 rounded-2xl border border-cyan-200 bg-cyan-50/75 p-3 text-sm leading-relaxed text-slate-700">
-                    <h3 class="font-title text-xl font-bold text-cyan-900">
-                      Treniranje AI-a
-                    </h3>
-                    <p class="mt-2">
-                      Zamislimo da je AI naša mala beba-robot koja uči hodati.
-                      Moramo mu na stotine puta pokazati kako se hoda, koja je
-                      noga lijeva, a koja desna, što znači korak unaprijed, a
-                      što korak unazad. Na taj način treniramo AI ispravnim
-                      podacima kako bismo ga osamostalili.
-                    </p>
-                  </div>
-                  <button
-                    type="button"
-                    class="cursor-pointer mt-4 w-full rounded-2xl bg-[#50d2fe] px-5 py-3 font-title text-base font-bold uppercase tracking-[0.12em] text-slate-950 transition hover:-translate-y-0.5 hover:bg-cyan-200"
-                    @click="nextAiIntroPage">
-                    Dalje
-                  </button>
-                </section>
-
-                <section class="w-full shrink-0 p-4 sm:p-5">
-                  <img
-                    src="/ai-see-learn-gif.gif"
-                    alt="AI raspoznaje slike"
-                    class="mx-auto h-52 w-full max-w-xs rounded-2xl object-contain sm:h-56" />
-                  <div
-                    class="mt-4 min-h-28 rounded-2xl border border-cyan-200 bg-cyan-50/75 p-3 text-sm leading-relaxed text-slate-700">
-                    <h3 class="font-title text-xl font-bold text-cyan-900">
-                      Kako AI raspoznaje slike?
-                    </h3>
-                    <p class="mt-2">
-                      Ipak, suvremeni AI danas može i gledati, slušati, pa čak i
-                      govoriti. Priznaj, barem jednom si popričao s ChatGPT-em!
-                    </p>
-                    <p class="mt-2">
-                      Cilj ove igre je što brže odabrati točnu oznaku za svaku
-                      sliku. Na ovaj način možete vidjeti kako umjetna
-                      inteligencija uči prepoznavati slike: treba joj puno
-                      ponavljanja i mnogo sličnih primjera!
-                    </p>
-                  </div>
-                  <button
-                    type="button"
-                    class="cursor-pointer mt-4 w-full rounded-2xl border border-cyan-400/70 bg-white px-5 py-3 text-sm font-semibold uppercase tracking-[0.12em] text-cyan-800 transition hover:bg-cyan-100/75"
-                    @click="beginAiTraining">
-                    ZAPOČNI TRENING 🏋️‍♀️
-                  </button>
-                </section>
-              </div>
-            </div>
-
-            <div class="pb-4">
-              <div class="flex items-center justify-center gap-2">
-                <button
-                  v-for="dotIndex in aiIntroTotalPages"
-                  :key="`ai-intro-dot-${dotIndex}`"
-                  type="button"
-                  class="cursor-pointer h-2.5 w-2.5 rounded-full transition"
-                  :class="
-                    aiIntroPage === dotIndex - 1
-                      ? 'bg-cyan-700 scale-110'
-                      : 'bg-cyan-200 hover:bg-cyan-300'
-                  "
-                  :aria-label="`Idi na stranicu ${dotIndex}`"
-                  @click="setAiIntroPage(dotIndex - 1)" />
-              </div>
-              <button
-                type="button"
-                class="cursor-pointer mt-3 block mx-auto text-xs font-semibold uppercase tracking-[0.12em] text-cyan-700 underline decoration-cyan-400 underline-offset-4"
-                @click="openHome">
-                Natrag
-              </button>
-            </div>
-          </article>
-        </section>
-
-        <section
+        <AiPlayingPage
           v-else-if="phase === 'ai-playing'"
           key="ai-playing"
-          class="mx-auto w-full max-w-5xl">
-          <div class="mb-2 grid grid-cols-2 gap-2 md:mb-3 md:grid-cols-4">
-            <div
-              class="rounded-2xl border border-cyan-200/70 bg-white/90 px-2.5 py-1.5 md:px-3 md:py-2">
-              <p
-                class="text-[10px] uppercase tracking-[0.12em] text-cyan-800 md:text-[11px] md:tracking-[0.14em]">
-                Točnost modela
-              </p>
-              <p class="font-title text-xl font-bold text-cyan-900 md:text-2xl">
-                {{ modelAccuracy }}%
-              </p>
-            </div>
-            <div
-              class="rounded-2xl border border-cyan-200/70 bg-white/90 px-2.5 py-1.5 md:px-3 md:py-2">
-              <p
-                class="text-[10px] uppercase tracking-[0.12em] text-cyan-800 md:text-[11px] md:tracking-[0.14em]">
-                Uzorci
-              </p>
-              <p class="font-title text-xl font-bold text-cyan-900 md:text-2xl">
-                {{ samplesSeen }}/{{ totalRounds }}
-              </p>
-            </div>
-            <div
-              class="rounded-2xl border border-cyan-200/70 bg-white/90 px-2.5 py-1.5 md:px-3 md:py-2">
-              <p
-                class="text-[10px] uppercase tracking-[0.12em] text-cyan-800 md:text-[11px] md:tracking-[0.14em]">
-                Streak
-              </p>
-              <p class="font-title text-xl font-bold text-cyan-900 md:text-2xl">
-                {{ streak }}
-              </p>
-            </div>
-            <div
-              class="rounded-2xl border border-cyan-200/70 bg-white/90 px-2.5 py-1.5 md:px-3 md:py-2">
-              <p
-                class="text-[10px] uppercase tracking-[0.12em] text-cyan-800 md:text-[11px] md:tracking-[0.14em]">
-                Težina
-              </p>
-              <p class="font-title text-xl font-bold text-cyan-900 md:text-2xl">
-                {{ activeAiConfig.label }}
-              </p>
-            </div>
-          </div>
+          :model-accuracy="modelAccuracy"
+          :samples-seen="samplesSeen"
+          :total-rounds="totalRounds"
+          :streak="streak"
+          :active-ai-label="activeAiConfig.label"
+          :hit-effect="hitEffect"
+          :frame-timer-color-class="frameTimerColorClass"
+          :frame-timer-percent="frameTimerPercent"
+          :session-seconds-left="sessionSecondsLeft"
+          :session-timer-percent="sessionTimerPercent"
+          :flash-token="flashToken"
+          :current-frame="currentFrame"
+          :current-options="currentOptions"
+          :round-number="roundNumber"
+          :are-option-buttons-disabled="areOptionButtonsDisabled"
+          :hit-effect-token="hitEffectToken"
+          :confetti-pieces="confettiPieces"
+          :option-button-class="optionButtonClass"
+          :confetti-piece-style="confettiPieceStyle"
+          @select-label="selectLabel" />
 
-          <div
-            class="relative overflow-hidden rounded-3xl border border-cyan-300/80 bg-white/90 shadow-[0_22px_58px_rgba(80,210,254,0.18)] backdrop-blur"
-            :class="
-              hitEffect === 'wrong'
-                ? 'animate-impact ring-2 ring-rose-400/80'
-                : ''
-            ">
-            <div class="h-1 w-full bg-white">
-              <div
-                class="h-full"
-                :class="frameTimerColorClass"
-                :style="{ width: `${frameTimerPercent}%` }" />
-            </div>
-
-            <div class="p-4 md:p-5">
-              <div
-                class="mb-1 flex items-center justify-between text-[11px] uppercase tracking-[0.14em] text-cyan-800">
-                <span>Session timer</span>
-                <span>{{ sessionSecondsLeft }}s</span>
-              </div>
-              <div
-                class="mb-4 h-2 w-full overflow-hidden rounded-full bg-cyan-100">
-                <div
-                  class="h-full bg-emerald-400 transition-[width] duration-75 ease-linear"
-                  :style="{ width: `${sessionTimerPercent}%` }" />
-              </div>
-
-              <transition name="vision-flash" mode="out-in">
-                <article
-                  :key="flashToken"
-                  class="relative mx-auto flex h-72 w-full max-w-3xl items-center justify-center overflow-hidden rounded-3xl bg-transparent p-6 md:h-80 md:p-8">
-                  <div
-                    class="relative h-full max-h-60 w-full max-w-60 overflow-hidden rounded-xl border border-cyan-200 md:max-h-64 md:max-w-64">
-                    <div
-                      class="pointer-events-none absolute inset-0 bg-[linear-gradient(180deg,rgba(80,210,254,0.06),rgba(255,255,255,0.2)),repeating-linear-gradient(0deg,rgba(80,210,254,0.09),rgba(80,210,254,0.09)_2px,transparent_2px,transparent_10px)]" />
-                    <div
-                      class="pointer-events-none absolute inset-y-0 left-[-35%] w-1/2 bg-gradient-to-r from-transparent via-cyan-200/45 to-transparent animate-scanline" />
-                    <img
-                      v-if="currentFrame"
-                      :src="currentFrame.path"
-                      :alt="`Slika: ${currentFrame.label}`"
-                      class="relative z-10 h-full w-full bg-transparent object-contain" />
-                  </div>
-                </article>
-              </transition>
-
-              <div class="mt-5 grid gap-3 sm:grid-cols-2">
-                <button
-                  v-for="label in currentOptions"
-                  :key="`option-${roundNumber}-${label}`"
-                  type="button"
-                  class="cursor-pointer rounded-2xl border border-cyan-300 bg-cyan-50 px-4 py-3 text-left font-title text-lg font-bold uppercase tracking-[0.14em] text-cyan-900 transition hover:-translate-y-0.5 hover:border-cyan-500 hover:bg-cyan-100 disabled:cursor-not-allowed disabled:border-slate-300 disabled:bg-slate-100 disabled:text-slate-500 disabled:opacity-75 disabled:hover:translate-y-0 disabled:hover:border-slate-300 disabled:hover:bg-slate-100"
-                  :disabled="areOptionButtonsDisabled"
-                  :class="optionButtonClass(label)"
-                  @click="selectLabel(label)">
-                  {{ label }}
-                </button>
-              </div>
-            </div>
-
-            <section
-              v-if="hitEffect"
-              :key="`hit-effect-${hitEffectToken}`"
-              class="pointer-events-none absolute inset-0 z-20 overflow-hidden">
-              <template v-if="hitEffect === 'correct'">
-                <span
-                  v-for="piece in confettiPieces"
-                  :key="`confetti-${hitEffectToken}-${piece}`"
-                  class="confetti-piece"
-                  :style="confettiPieceStyle(piece)" />
-              </template>
-              <template v-else>
-                <div class="wrong-flash-screen" />
-                <div class="wrong-cross" />
-              </template>
-            </section>
-          </div>
-        </section>
-
-        <section
+        <AiOutroPage
           v-else-if="phase === 'ai-finished' && !isGameOverCelebrationVisible"
           key="ai-finished"
-          class="mx-auto w-full max-w-md">
-          <article
-            class="overflow-hidden rounded-3xl border border-cyan-200/70 bg-white/90 shadow-[0_18px_50px_rgba(80,210,254,0.18)] backdrop-blur">
-            <div
-              class="overflow-hidden"
-              @touchstart="onAiOutroTouchStart"
-              @touchmove="onAiOutroTouchMove"
-              @touchend="onAiOutroTouchEnd">
-              <div
-                class="flex transition-transform duration-300 ease-out"
-                :style="{ transform: `translateX(-${aiOutroPage * 100}%)` }">
-                <section class="w-full shrink-0 p-4 sm:p-5">
-                  <h3
-                    class="text-center font-title text-xl font-bold text-cyan-900">
-                    Problem klasifikacije
-                  </h3>
-                  <img
-                    src="/classify.png"
-                    alt="Klasifikacija"
-                    class="mx-auto mt-3 h-36 w-full max-w-xs rounded-2xl object-contain sm:h-40" />
-                  <div
-                    class="mt-4 rounded-2xl border border-cyan-200 bg-cyan-50/75 p-4 text-sm leading-relaxed text-slate-700">
-                    <p>
-                      Ovaj problem u svijetu umjetne inteligencije zove se
-                      problem klasifikacije - dodjeljivanje ispravne labele
-                      (naziva) određenoj slici.
-                    </p>
-                  </div>
-                  <button
-                    type="button"
-                    class="cursor-pointer mt-4 w-full rounded-2xl bg-[#50d2fe] px-5 py-3 font-title text-base font-bold uppercase tracking-[0.12em] text-slate-950 transition hover:-translate-y-0.5 hover:bg-cyan-200"
-                    @click="nextAiOutroPage">
-                    Dalje
-                  </button>
-                </section>
+          class="mb-6 md:mb-10"
+          :ai-outro-page="aiOutroPage"
+          :ai-outro-total-pages="aiOutroTotalPages"
+          :total-rounds="totalRounds"
+          :correct-count="correctCount"
+          :model-accuracy="modelAccuracy"
+          :outro-email="outroEmail"
+          :outro-email-status="outroEmailStatus"
+          :outro-email-status-text="outroEmailStatusText"
+          @next-page="nextAiOutroPage"
+          @prev-page="prevAiOutroPage"
+          @set-page="setAiOutroPage"
+          @touch-start="onAiOutroTouchStart"
+          @touch-move="onAiOutroTouchMove"
+          @touch-end="onAiOutroTouchEnd"
+          @update:outro-email="outroEmail = $event"
+          @submit-outro-email="submitOutroEmail"
+          @close-ai-outro="closeAiOutro" />
 
-                <section class="w-full shrink-0 p-4 sm:p-5">
-                  <img
-                    src="/robot-wave-gif.gif"
-                    alt="Robot"
-                    class="mx-auto h-44 w-full max-w-xs rounded-2xl object-contain sm:h-48" />
-                  <div
-                    class="mt-4 rounded-2xl border border-cyan-200 bg-cyan-50/75 p-4 text-sm leading-relaxed text-slate-700">
-                    <p>
-                      Ti si sada klasificirao/la ukupno {{ totalRounds }} slika,
-                      od toga uspješno
-                      <span class="font-semibold text-cyan-900">{{
-                        correctCount
-                      }}</span
-                      >. Dakle točnost klasifikacije je
-                      <span class="font-semibold text-cyan-900"
-                        >{{ modelAccuracy }}%</span
-                      >. Na slikama su bili opće-poznati objekti, i ne bismo
-                      imali problema klasificirati sličan objekt. Npr. kada
-                      bismo vidjeli još jednu automobila, znali bismo da je to
-                      automobil bez puno razmišljanja.
-                    </p>
-                  </div>
-                  <button
-                    type="button"
-                    class="cursor-pointer mt-4 w-full rounded-2xl bg-[#50d2fe] px-5 py-3 font-title text-base font-bold uppercase tracking-[0.12em] text-slate-950 transition hover:-translate-y-0.5 hover:bg-cyan-200"
-                    @click="nextAiOutroPage">
-                    Dalje
-                  </button>
-                </section>
+        <AiInterestPage
+          v-else-if="phase === 'ai-interest'"
+          key="ai-interest"
+          :show-success-toast="shouldShowAiInterestToast"
+          @open-home="closeAiInterestPage" />
 
-                <section class="w-full shrink-0 p-4 sm:p-5">
-                  <img
-                    src="/ai-learn-gif.gif"
-                    alt="AI učenje"
-                    class="mx-auto h-52 w-full max-w-xs rounded-2xl object-contain sm:h-56" />
-                  <div
-                    class="mt-4 rounded-2xl border border-cyan-200 bg-cyan-50/75 p-4 text-sm leading-relaxed text-slate-700">
-                    <p>
-                      Ipak, umjetnoj inteligenciji treba malo više primjera.
-                      Njoj nije dovoljno da vidi 10tak auti, niti 20... Već na
-                      stotine tisuća ili milijuna primjera. Iz tog razloga,
-                      treniranje umjetne inteligencije je skupo i zahtjeva
-                      značajne računalne resurse - i to samo za jednostavni
-                      primjer klasifikacije slika!
-                    </p>
-                  </div>
-                  <button
-                    type="button"
-                    class="cursor-pointer mt-4 w-full rounded-2xl bg-[#50d2fe] px-5 py-3 font-title text-base font-bold uppercase tracking-[0.12em] text-slate-950 transition hover:-translate-y-0.5 hover:bg-cyan-200"
-                    @click="nextAiOutroPage">
-                    Dalje
-                  </button>
-                </section>
-
-                <section class="w-full shrink-0 p-4 sm:p-5">
-                  <img
-                    src="/fipu_student_diploma.gif"
-                    alt="FIPU student diploma"
-                    class="mx-auto h-52 w-full max-w-xs rounded-2xl object-contain sm:h-56" />
-                  <div
-                    class="mt-4 rounded-2xl border border-cyan-200 bg-cyan-50/75 p-4 text-sm leading-relaxed text-slate-700">
-                    <h3 class="font-title text-xl font-bold text-cyan-900">
-                      Studiraj na FIPU
-                    </h3>
-                    <p class="mt-2">
-                      Želiš naučiti više? Zanima te AI? Sviđa ti se ova
-                      interaktivna igrica?
-                    </p>
-                    <p class="mt-2">
-                      Naši studenti završetkom studija samostalno izrađuju
-                      ovakve aplikacije, treniraju svoje AI modele, uspješno
-                      rade interaktivne video igrice, modernim Blockchain
-                      tehnologijama i mnogo toga drugog.
-                    </p>
-                    <p class="mt-2">
-                      Ako želiš saznati više, ostavi nam ispod tvoju e-mail
-                      adresu i poslat ćemo ti mail s više detalja. Bez brige,
-                      nećemo spammati!
-                    </p>
-                  </div>
-
-                  <label
-                    for="outro-email"
-                    class="mt-4 block text-xs font-semibold uppercase tracking-[0.16em] text-cyan-800">
-                    Email (opcionalno)
-                  </label>
-                  <input
-                    id="outro-email"
-                    v-model="outroEmail"
-                    type="email"
-                    inputmode="email"
-                    autocomplete="email"
-                    placeholder="npr. ime.prezime@gmail.com"
-                    class="mt-2 w-full rounded-xl border border-cyan-300 bg-white px-3 py-2 text-base text-slate-900 outline-none transition focus:border-cyan-500 focus:ring-2 focus:ring-cyan-300/45 md:text-sm"
-                    @keyup.enter="submitOutroEmail" />
-
-                  <p
-                    v-if="outroEmailStatusText"
-                    class="mt-2 text-sm text-cyan-900">
-                    {{ outroEmailStatusText }}
-                  </p>
-
-                  <div class="mt-4 flex flex-wrap gap-3">
-                    <button
-                      type="button"
-                      class="cursor-pointer flex-1 rounded-2xl bg-[#50d2fe] px-5 py-3 font-title text-base font-bold uppercase tracking-[0.12em] text-slate-950 transition hover:-translate-y-0.5 hover:bg-cyan-200 disabled:cursor-not-allowed disabled:opacity-75"
-                      :disabled="outroEmailStatus === 'saving'"
-                      @click="submitOutroEmail">
-                      Pošalji email
-                    </button>
-                    <button
-                      type="button"
-                      class="cursor-pointer flex-1 rounded-2xl border border-cyan-400/70 bg-white px-5 py-3 text-sm font-semibold uppercase tracking-[0.12em] text-cyan-800 transition hover:bg-cyan-100/75"
-                      @click="closeAiOutro">
-                      Zatvori
-                    </button>
-                  </div>
-                </section>
-              </div>
-            </div>
-
-            <div class="pb-4">
-              <div class="flex items-center justify-center gap-2">
-                <button
-                  v-for="dotIndex in aiOutroTotalPages"
-                  :key="`ai-outro-dot-${dotIndex}`"
-                  type="button"
-                  class="cursor-pointer h-2.5 w-2.5 rounded-full transition"
-                  :class="
-                    aiOutroPage === dotIndex - 1
-                      ? 'bg-cyan-700 scale-110'
-                      : 'bg-cyan-200 hover:bg-cyan-300'
-                  "
-                  :aria-label="`Idi na stranicu ${dotIndex}`"
-                  @click="setAiOutroPage(dotIndex - 1)" />
-              </div>
-              <button
-                v-if="aiOutroPage > 0"
-                type="button"
-                class="cursor-pointer mt-3 block mx-auto text-xs font-semibold uppercase tracking-[0.12em] text-cyan-700 underline decoration-cyan-400 underline-offset-4"
-                @click="prevAiOutroPage">
-                Natrag
-              </button>
-            </div>
-          </article>
-        </section>
-
-        <section v-else key="coming-soon" class="mx-auto w-full max-w-3xl">
-          <article
-            class="rounded-3xl border border-cyan-200/70 bg-white/90 p-6 text-center shadow-[0_18px_50px_rgba(80,210,254,0.18)] backdrop-blur">
-            <p
-              class="inline-flex items-center rounded-full bg-cyan-100 px-3 py-1 text-xs font-semibold uppercase tracking-[0.2em] text-cyan-800">
-              Uskoro
-            </p>
-            <h2
-              class="mt-4 font-title text-2xl font-bold text-slate-900 md:text-3xl">
-              {{ phase === "it-soon" ? "IT kviz" : "Leaderboard" }}
-            </h2>
-            <p class="mt-3 text-sm text-slate-700 md:text-base">
-              Odabrana težina:
-              <span class="font-semibold text-cyan-900">{{
-                selectedDifficultyLabel
-              }}</span>
-            </p>
-            <p class="mt-2 text-sm text-slate-700 md:text-base">
-              Ovaj dio implementiramo u sljedećem koraku.
-            </p>
-
-            <button
-              type="button"
-              class="cursor-pointer mt-6 rounded-2xl bg-[#50d2fe] px-5 py-3 font-title text-base font-bold uppercase tracking-[0.12em] text-slate-950 transition hover:-translate-y-0.5 hover:bg-cyan-200"
-              @click="openHome">
-              Natrag na odabir
-            </button>
-          </article>
-        </section>
+        <ComingSoonPage
+          v-else
+          key="coming-soon"
+          :phase="phase"
+          :selected-difficulty-label="selectedDifficultyLabel"
+          @open-home="openHome" />
       </Transition>
 
-      <section
+      <NicknameModal
         v-if="isNicknameModalOpen"
-        class="fixed inset-0 z-30 flex items-center justify-center bg-slate-900/40 p-4">
-        <article
-          class="w-full max-w-md rounded-3xl border border-cyan-200/70 bg-white p-5 shadow-[0_18px_50px_rgba(80,210,254,0.24)]">
-          <template v-if="!isAutoNameRevealVisible">
-            <h2 class="font-title text-2xl font-bold text-cyan-900">Nadimak</h2>
-            <p class="mt-2 text-sm text-slate-700">
-              Unesi nadimak za leaderboard. Ako nastaviš bez imena, dobit ćeš
-              nasumični.
-            </p>
-
-            <label
-              for="nickname-modal"
-              class="mt-4 block text-xs font-semibold uppercase tracking-[0.16em] text-cyan-800">
-              Nadimak (opcionalno)
-            </label>
-            <input
-              id="nickname-modal"
-              v-model="nicknameDraft"
-              type="text"
-              maxlength="24"
-              placeholder="Npr. Luka"
-              class="mt-2 w-full rounded-xl border border-cyan-300 bg-white px-3 py-2 text-base text-slate-900 outline-none transition focus:border-cyan-500 focus:ring-2 focus:ring-cyan-300/45 md:text-sm"
-              @keyup.enter="confirmNicknameAndStartGame" />
-
-            <div class="mt-5 flex gap-2">
-              <button
-                type="button"
-                class="cursor-pointer flex-1 rounded-xl border border-cyan-300 bg-white px-4 py-2 text-sm font-semibold uppercase tracking-[0.08em] text-cyan-800 transition hover:bg-cyan-100"
-                @click="goBackFromNicknameModal">
-                Natrag
-              </button>
-              <button
-                type="button"
-                class="cursor-pointer flex-1 rounded-xl bg-[#50d2fe] px-4 py-2 text-sm font-bold uppercase tracking-[0.08em] text-slate-950 transition hover:bg-cyan-200"
-                @click="confirmNicknameAndStartGame">
-                Nastavi
-              </button>
-            </div>
-          </template>
-
-          <template v-else>
-            <p
-              class="text-center font-title text-xl font-bold uppercase tracking-[0.1em] text-cyan-900 sm:text-2xl">
-              Nazvat ću te...
-            </p>
-            <p
-              v-if="autoNameRevealShowName"
-              class="mt-4 max-w-full text-center font-bold uppercase leading-tight text-cyan-900 animate-name-reveal [overflow-wrap:anywhere]"
-              :class="revealedNameClass">
-              {{ autoNameRevealName }}!
-            </p>
-          </template>
-        </article>
-      </section>
+        :is-auto-name-reveal-visible="isAutoNameRevealVisible"
+        :auto-name-reveal-show-name="autoNameRevealShowName"
+        :auto-name-reveal-name="autoNameRevealName"
+        :revealed-name-class="revealedNameClass"
+        :nickname-draft="nicknameDraft"
+        @update:nickname-draft="nicknameDraft = $event"
+        @confirm-nickname-and-start-game="confirmNicknameAndStartGame"
+        @go-back-from-nickname-modal="goBackFromNicknameModal" />
 
       <section
         v-if="isStartCountdownVisible"
@@ -1493,11 +1068,10 @@ onBeforeUnmount(() => {
             class="confetti-piece"
             :style="confettiPieceStyle(piece)" />
         </section>
-
       </Teleport>
 
       <footer
-        v-if="!isGameRunning"
+        v-if="!isGameRunning && phase !== 'ai-interest'"
         class="relative left-1/2 mt-auto w-screen -translate-x-1/2 bg-white pt-6 pb-4 md:pt-2 md:pb-2">
         <div
           class="pointer-events-none absolute inset-x-0 -top-8 h-8 bg-gradient-to-b from-transparent to-white" />

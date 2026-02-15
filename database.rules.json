@@ -2,7 +2,7 @@
   "rules": {
     ".read": true,
     "leaderboard": {
-      ".indexOn": ["score"],
+      ".indexOn": ["score", "difficulty"],
       ".write": true,
       "$entry": {
         "name": {
@@ -16,6 +16,12 @@
         },
         "streak": {
           ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 99"
+        },
+        "difficulty": {
+          ".validate": "newData.isString() && (newData.val() === 'easy' || newData.val() === 'hard')"
+        },
+        "userId": {
+          ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length <= 64"
         },
         "$other": {
           ".validate": "$other === 'createdAt'"

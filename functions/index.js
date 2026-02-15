@@ -6,10 +6,35 @@ initializeApp()
 
 const MAX_SCORE = 5000
 const MAX_DURATION_MS = 180000
+const ALLOWED_DIFFICULTIES = ['easy', 'hard']
 
 const normalizeName = (rawName) => {
   const cleanName = String(rawName ?? '').trim().replace(/\s+/g, ' ')
   return cleanName.slice(0, 24) || 'Guest'
+}
+
+const normalizeUserId = (rawUserId) => {
+  const cleanUserId = String(rawUserId ?? '').replace(/[^a-zA-Z0-9_-]/g, '').slice(0, 64)
+  if (!cleanUserId) {
+    throw new HttpsError('invalid-argument', 'Score payload contains invalid userId.')
+  }
+  return cleanUserId
+}
+
+const normalizeDifficulty = (rawDifficulty) => {
+  const difficulty = String(rawDifficulty ?? '').toLowerCase()
+  if (!ALLOWED_DIFFICULTIES.includes(difficulty)) {
+    throw new HttpsError('invalid-argument', 'Score payload contains invalid difficulty.')
+  }
+  return difficulty
+}
+
+const isBetterEntry = (nextEntry, currentEntry) => {
+  if (!currentEntry) return true
+  if (nextEntry.score !== currentEntry.score) return nextEntry.score > currentEntry.score
+  if (nextEntry.durationMs !== currentEntry.durationMs) return nextEntry.durationMs < currentEntry.durationMs
+  if (nextEntry.streak !== currentEntry.streak) return nextEntry.streak > currentEntry.streak
+  return nextEntry.createdAt < currentEntry.createdAt
 }
 
 const normalizeBoundedNumber = (rawValue, min, max) => {
@@ -32,10 +57,20 @@ export const submitScore = onCall({ cors: true }, async (request) => {
     score: normalizeBoundedNumber(payload.score, 0, MAX_SCORE),
     durationMs: normalizeBoundedNumber(payload.durationMs, 0, MAX_DURATION_MS),
     streak: normalizeBoundedNumber(payload.streak ?? 0, 0, 99),
+    userId: normalizeUserId(payload.userId),
+    difficulty: normalizeDifficulty(payload.difficulty),
     createdAt: Date.now(),
   }
 
-  await getDatabase().ref('leaderboard').push(entry)
+  const entryRef = getDatabase().ref(`leaderboard/${entry.userId}_${entry.difficulty}`)
+
+  await entryRef.transaction((currentValue) => {
+    const currentEntry = currentValue ? currentValue : null
+    if (!isBetterEntry(entry, currentEntry)) {
+      return currentValue
+    }
+    return entry
+  })
 
   return {
     ok: true,

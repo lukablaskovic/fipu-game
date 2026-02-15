@@ -26,7 +26,7 @@ npm install
 ```
 2. Copy env template and fill Firebase values:
 ```bash
-cp .env.example .env
+cp .env.template .env
 ```
 3. Start app:
 ```bash
@@ -57,6 +57,25 @@ firebase deploy --only functions
 ```bash
 VITE_USE_FUNCTIONS=true
 ```
+
+## EmailJS Setup (Outro Email)
+
+When player enters email after finishing game, frontend can send an instant email via EmailJS.
+
+1. Fill these values in `/Users/lukablaskovic/Github/fipu-game/.env`:
+```bash
+VITE_EMAILJS_SERVICE_ID=
+VITE_EMAILJS_TEMPLATE_ID=
+VITE_EMAILJS_PUBLIC_KEY=
+```
+2. Use HTML template from:
+- `/Users/lukablaskovic/Github/fipu-game/src/email/fipu-outro-email-template.html`
+3. In EmailJS template, use variables:
+- `{{player_name}}`
+- `{{model_accuracy}}`
+- `{{correct_count}}`
+- `{{total_rounds}}`
+- `{{difficulty}}`
 
 ## Deploy Hosting
 
