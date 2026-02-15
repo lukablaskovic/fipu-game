@@ -43,23 +43,23 @@ const gameCardGifs = {
 };
 
 const difficultyOptions = [
-  { id: "easy", label: "Easy (80s)" },
-  { id: "hard", label: "Hard (45s)" },
+  { id: "easy", label: "Easy (60s)" },
+  { id: "hard", label: "Hard (40s)" },
 ];
 
 const aiConfigs = {
   easy: {
     totalRounds: 20,
     roundDurationMs: 3000,
-    sessionDurationMs: 80000,
+    sessionDurationMs: 60000,
     optionCount: 4,
     feedbackMs: 0,
     label: "Easy",
   },
   hard: {
     totalRounds: 20,
-    roundDurationMs: 1500,
-    sessionDurationMs: 45000,
+    roundDurationMs: 2000,
+    sessionDurationMs: 40000,
     optionCount: 4,
     feedbackMs: 0,
     label: "Hard",
