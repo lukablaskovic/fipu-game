@@ -106,7 +106,7 @@ onActivated(() => {
 
 <template>
   <section
-    class="relative isolate flex h-[100svh] min-h-[100svh] w-full flex-col justify-between overflow-hidden px-5 pb-7 pt-9 sm:px-8">
+    class="relative isolate flex min-h-[100svh] w-full flex-col justify-between overflow-x-hidden overflow-y-auto px-5 pb-[calc(1.75rem+env(safe-area-inset-bottom))] pt-9 sm:px-8">
     <img
       src="/negrijeva-pixelart.png"
       alt=""
@@ -157,13 +157,26 @@ onActivated(() => {
                     stroke-linejoin="round" />
                 </svg>
                 <svg
-                  v-else
+                  v-else-if="contact.label === 'Web'"
                   viewBox="0 0 24 24"
                   fill="none"
                   aria-hidden="true"
                   class="h-4 w-4">
                   <path
                     d="M12 4a8 8 0 1 0 0 16m0-16c2.5 2.2 4 5 4 8s-1.5 5.8-4 8m0-16c-2.5 2.2-4 5-4 8s1.5 5.8 4 8m-7-8h14M5.5 8h13M5.5 16h13"
+                    stroke="currentColor"
+                    stroke-width="1.8"
+                    stroke-linecap="round"
+                    stroke-linejoin="round" />
+                </svg>
+                <svg
+                  v-else
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  aria-hidden="true"
+                  class="h-4 w-4">
+                  <path
+                    d="M6.5 3.5h3L11 7l-2 2c.9 1.8 2.2 3.1 4 4l2-2 3.5 1.5v3c0 .8-.7 1.5-1.5 1.5C9.9 19 5 14.1 5 8c0-.8.7-1.5 1.5-1.5Z"
                     stroke="currentColor"
                     stroke-width="1.8"
                     stroke-linecap="round"
