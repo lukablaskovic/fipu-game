@@ -788,7 +788,6 @@ const onAiOutroTouchEnd = () => {
 const submitOutroEmail = async () => {
   const normalizedEmail = outroEmail.value.trim().toLowerCase();
   const normalizedFullName = outroFullName.value.trim().replace(/\s+/g, " ");
-  const resolvedPlayerName = normalizedFullName || currentPlayerName.value;
   const hasEmail = Boolean(normalizedEmail);
 
   if (hasEmail && !isValidEmail(normalizedEmail)) {
@@ -818,12 +817,7 @@ const submitOutroEmail = async () => {
     });
     await sendOutroEmail({
       toEmail: normalizedEmail,
-      playerName: resolvedPlayerName,
       fullName: normalizedFullName,
-      modelAccuracy: modelAccuracy.value,
-      correctCount: correctCount.value,
-      totalRounds: totalRounds.value,
-      difficulty: activeAiConfig.value.label,
     });
     outroEmailStatus.value = "saved";
     shouldShowAiInterestToast.value = true;

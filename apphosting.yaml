@@ -1,3 +1,53 @@
 scripts:
   buildCommand: npm run build
   runCommand: npm run start
+
+env:
+  - variable: VITE_FIREBASE_API_KEY
+    value: "AIzaSyAD479y34YQ5mq_eeUS9Rk9H1wtYeQHyQI"
+    availability:
+      - BUILD
+  - variable: VITE_FIREBASE_AUTH_DOMAIN
+    value: "fipu-game.firebaseapp.com"
+    availability:
+      - BUILD
+  - variable: VITE_FIREBASE_DATABASE_URL
+    value: "https://fipu-game-default-rtdb.europe-west1.firebasedatabase.app/"
+    availability:
+      - BUILD
+  - variable: VITE_FIREBASE_PROJECT_ID
+    value: "fipu-game"
+    availability:
+      - BUILD
+  - variable: VITE_FIREBASE_STORAGE_BUCKET
+    value: "fipu-game.firebasestorage.app"
+    availability:
+      - BUILD
+  - variable: VITE_FIREBASE_MESSAGING_SENDER_ID
+    value: "765074927153"
+    availability:
+      - BUILD
+  - variable: VITE_FIREBASE_APP_ID
+    value: "1:765074927153:web:903fbaa0cb82c951266f10"
+    availability:
+      - BUILD
+  - variable: VITE_FIREBASE_MEASUREMENT_ID
+    value: "G-T18S4ZWLBJ"
+    availability:
+      - BUILD
+  - variable: VITE_USE_FUNCTIONS
+    value: "false"
+    availability:
+      - BUILD
+  - variable: VITE_EMAILJS_SERVICE_ID
+    value: "service_j77z5gb"
+    availability:
+      - BUILD
+  - variable: VITE_EMAILJS_TEMPLATE_ID
+    value: "template_c14vj4l"
+    availability:
+      - BUILD
+  - variable: VITE_EMAILJS_PUBLIC_KEY
+    value: "37BFS3w8GnX2Elfi7"
+    availability:
+      - BUILD

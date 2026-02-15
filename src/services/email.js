@@ -13,12 +13,7 @@ const normalizeValue = (value) => String(value ?? '').trim()
 
 export const sendOutroEmail = async ({
   toEmail,
-  playerName,
   fullName,
-  modelAccuracy,
-  correctCount,
-  totalRounds,
-  difficulty,
 }) => {
   if (!isEmailJsConfigured) {
     return { mode: 'skipped' }
@@ -31,17 +26,8 @@ export const sendOutroEmail = async ({
   }
 
   const templateParams = {
-    to_email: email,
-    player_name: normalizeValue(playerName) || 'Gost',
+    toEmail: email,
     full_name: normalizeValue(fullName) || email,
-    model_accuracy: `${Number(modelAccuracy) || 0}%`,
-    correct_count: String(Number(correctCount) || 0),
-    total_rounds: String(Number(totalRounds) || 0),
-    difficulty: normalizeValue(difficulty) || 'Easy',
-    logo_image_url:
-      typeof window !== 'undefined'
-        ? `${window.location.origin}/fipu-unipu-logo.png`
-        : '',
   }
 
   await emailjs.send(
