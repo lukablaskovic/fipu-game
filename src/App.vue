@@ -636,6 +636,19 @@ const openLeaderboard = async () => {
   await refreshLeaderboard();
 };
 
+const openFipuInfoForm = () => {
+  clearTimers();
+  isQuizCancelModalOpen.value = false;
+  isGameOverCelebrationVisible.value = false;
+  outroEmail.value = "";
+  outroFullName.value = "";
+  outroEmailStatus.value = "idle";
+  shouldShowAiInterestToast.value = false;
+  aiOutroPage.value = aiOutroTotalPages - 1;
+  phase.value = "ai-finished";
+  window.requestAnimationFrame(scrollPageToTop);
+};
+
 const setLeaderboardDifficulty = async (difficulty) => {
   leaderboardDifficulty.value = difficulty === "hard" ? "hard" : "easy";
   await refreshLeaderboard();
@@ -921,6 +934,18 @@ const nextQuizQuestion = () => {
   selectedQuizOption.value = "";
 };
 
+const markQuizAnswerAsUnknown = () => {
+  if (selectedQuizOption.value || phase.value !== "quiz-playing") return;
+
+  selectedQuizOption.value = "unknown";
+
+  window.clearTimeout(quizAutoAdvanceTimeoutId);
+  quizAutoAdvanceTimeoutId = window.setTimeout(() => {
+    quizAutoAdvanceTimeoutId = 0;
+    nextQuizQuestion();
+  }, 300);
+};
+
 const restartQuiz = () => {
   void beginQuizGame();
 };
@@ -1194,7 +1219,8 @@ watch(
           @select-game-type="selectedGameType = $event"
           @select-difficulty="selectedDifficulty = $event"
           @start-selected-game="startSelectedGame"
-          @open-leaderboard="openLeaderboard" />
+          @open-leaderboard="openLeaderboard"
+          @open-fipu-info="openFipuInfoForm" />
 
         <QuizPlayingPage
           v-else-if="phase === 'quiz-playing' || phase === 'quiz-starting'"
@@ -1208,7 +1234,7 @@ watch(
           :quiz-timer-percent="quizTimerPercent"
           :is-locked="isQuizInteractionLocked"
           @select-option="selectQuizOption"
-          @next-question="nextQuizQuestion"
+          @dont-know="markQuizAnswerAsUnknown"
           @request-cancel="cancelQuizGame" />
 
         <QuizFinishedPage
@@ -1309,7 +1335,8 @@ watch(
           @select-game-type="selectedGameType = $event"
           @select-difficulty="selectedDifficulty = $event"
           @start-selected-game="startSelectedGame"
-          @open-leaderboard="openLeaderboard" />
+          @open-leaderboard="openLeaderboard"
+          @open-fipu-info="openFipuInfoForm" />
       </Transition>
 
       <NicknameModal
@@ -1356,27 +1383,33 @@ watch(
 
       <footer
         v-if="!isGameRunning && phase !== 'ai-interest'"
-        class="relative left-1/2 mt-auto w-screen -translate-x-1/2 bg-white pt-6 pb-4 md:pt-2 md:pb-2">
+        class="relative left-1/2 mt-auto w-screen -translate-x-1/2 bg-white pt-5 pb-5 md:pt-2 md:pb-2">
         <div
-          class="pointer-events-none absolute inset-x-0 -top-8 h-8 bg-gradient-to-b from-transparent to-white" />
-        <img
-          src="/fipu-unipu-logo.png"
-          alt="FIPU UNIPU logo"
-          class="mx-auto h-auto w-full max-w-5xl object-contain px-4 md:w-auto md:max-w-md md:max-h-16 md:px-0" />
+          class="pointer-events-none absolute inset-x-0 -top-6 h-6 bg-gradient-to-b from-transparent to-white md:-top-8 md:h-8" />
+        <a
+          href="https://fipu.unipu.hr/"
+          target="_blank"
+          rel="noopener noreferrer"
+          class="cursor-pointer block">
+          <img
+            src="/fipu-unipu-logo.png"
+            alt="FIPU UNIPU logo"
+            class="mx-auto h-auto w-full max-w-[19rem] object-contain px-6 sm:max-w-[24rem] md:w-auto md:max-w-md md:max-h-16 md:px-0" />
+        </a>
         <div
-          class="mt-3 flex flex-col items-center justify-center gap-1 px-4 md:mt-2">
+          class="mt-3 flex flex-col items-center justify-center gap-1.5 px-4 md:mt-2 md:gap-1">
           <a
             href="https://www.unipu.hr/"
             target="_blank"
             rel="noopener noreferrer"
-            class="cursor-pointer text-center text-base font-medium text-cyan-900 underline decoration-cyan-500 underline-offset-4 hover:text-cyan-700 md:text-base">
+            class="cursor-pointer text-center text-sm font-semibold text-[#50d2fe] hover:text-[#2abfe8] sm:text-base">
             Sveučilište Jurja Dobrile u Puli
           </a>
           <a
             href="https://fipu.unipu.hr/"
             target="_blank"
             rel="noopener noreferrer"
-            class="cursor-pointer text-center text-base font-medium text-cyan-900 underline decoration-cyan-500 underline-offset-4 hover:text-cyan-700 md:text-base">
+            class="cursor-pointer text-center text-sm font-semibold text-[#50d2fe] hover:text-[#2abfe8] sm:text-base">
             Fakultet informatike u Puli
           </a>
         </div>

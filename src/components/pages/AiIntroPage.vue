@@ -66,8 +66,7 @@ const emit = defineEmits([
                 Pojednostavljeno rečeno, umjetnu inteligenciju možemo zamisliti
                 kao složeni matematički model koji, oslanjajući se na veliku
                 količinu podataka koje je „vidio” te snažnu računalnu obradu,
-                nastoji predvidjeti najbolji mogući rezultat ili odgovor na neki
-                upit.
+                nastoji predvidjeti najbolji mogući rezultat za neki problem.
               </p>
             </div>
             <button
@@ -93,7 +92,7 @@ const emit = defineEmits([
                 mu na stotine puta pokazati kako se hoda, koja je noga lijeva, a
                 koja desna, što znači korak unaprijed, a što korak unazad. Na
                 taj način treniramo AI ispravnim podacima kako bismo ga
-                osamostalili.
+                "osamostalili".
               </p>
             </div>
             <button

@@ -112,21 +112,21 @@ onBeforeUnmount(() => {
         <div
           class="flex transition-transform duration-300 ease-out"
           :style="{ transform: `translateX(-${aiOutroPage * 100}%)` }">
-          <section class="w-full shrink-0 p-4 sm:p-5">
+          <section
+            class="h-[32rem] w-full shrink-0 overflow-y-auto p-4 sm:h-[34rem] sm:p-5">
             <h3 class="text-center font-title text-xl font-bold text-cyan-900">
               Problem klasifikacije
             </h3>
             <img
               src="/classify.png"
               alt="Klasifikacija"
-              class="mx-auto mt-3 h-36 w-full max-w-xs rounded-2xl object-contain sm:h-40" />
+              class="mx-auto mt-3 h-52 w-full max-w-xs rounded-2xl object-contain sm:h-56" />
             <div
-              class="mt-4 rounded-2xl border border-cyan-200 bg-cyan-50/75 p-4 text-sm leading-relaxed text-slate-700">
+              class="mt-4 min-h-28 rounded-2xl border border-cyan-200 bg-cyan-50/75 p-3 text-sm leading-relaxed text-slate-700">
               <p>
-                U svijetu umjetne inteligencije i strojnog učenja, ovaj se
-                zadatak naziva <b>klasifikacija</b> – prepoznavanje i
-                dodjeljivanje ispravne oznake slici. Međutim, klasifikacija je
-                samo jedan od mnogih zadataka u području umjetne inteligencije.
+                U svijetu umjetne inteligencije i strojnog učenja ovaj zadatak
+                zove se <b>klasifikacija</b>: prepoznavanje objekta i dodjela
+                točne oznake slici.
               </p>
             </div>
             <button
@@ -137,27 +137,24 @@ onBeforeUnmount(() => {
             </button>
           </section>
 
-          <section class="w-full shrink-0 p-4 sm:p-5">
+          <section
+            class="h-[32rem] w-full shrink-0 overflow-y-auto p-4 sm:h-[34rem] sm:p-5">
             <img
               src="/robot-wave-gif.gif"
               alt="Robot"
-              class="mx-auto h-44 w-full max-w-xs rounded-2xl object-contain sm:h-48" />
+              class="mx-auto h-52 w-full max-w-xs rounded-2xl object-contain sm:h-56" />
             <div
-              class="mt-4 rounded-2xl border border-cyan-200 bg-cyan-50/75 p-4 text-sm leading-relaxed text-slate-700">
+              class="mt-4 min-h-28 rounded-2xl border border-cyan-200 bg-cyan-50/75 p-3 text-sm leading-relaxed text-slate-700">
               <p>
-                Ti si sada klasificirao/la ukupno {{ totalRounds }} slika, od
-                toga uspješno
+                Ti si klasificirao/la {{ totalRounds }} slika, a točno
                 <span class="font-semibold text-cyan-900">{{
                   correctCount
                 }}</span
-                >. Dakle točnost klasifikacije je
+                >. Točnost je
                 <span class="font-semibold text-cyan-900"
-                  >{{ modelAccuracy }}%</span
-                >. Na slikama su bili opće poznati objekti koje prosječna osoba
-                bez poteškoća može prepoznati i svrstati u odgovarajuću
-                kategoriju. Primjerice, kada bismo vidjeli još jedan automobil,
-                odmah bismo znali da je riječ o automobilu, bez puno
-                razmišljanja.
+                  >{{ modelAccuracy }}%</span>.
+                Ljudi to rade brzo jer prepoznaju uzorke iz prethodnog
+                iskustva.
               </p>
             </div>
             <button
@@ -168,25 +165,22 @@ onBeforeUnmount(() => {
             </button>
           </section>
 
-          <section class="w-full shrink-0 p-4 sm:p-5">
+          <section
+            class="h-[32rem] w-full shrink-0 overflow-y-auto p-4 sm:h-[34rem] sm:p-5">
             <img
               src="/ai-learn-gif.gif"
               alt="AI učenje"
               class="mx-auto h-52 w-full max-w-xs rounded-2xl object-contain sm:h-56" />
             <div
-              class="mt-4 rounded-2xl border border-cyan-200 bg-cyan-50/75 p-4 text-sm leading-relaxed text-slate-700">
+              class="mt-4 min-h-28 rounded-2xl border border-cyan-200 bg-cyan-50/75 p-3 text-sm leading-relaxed text-slate-700">
               <p>
-                Ipak, umjetnoj inteligenciji potrebno je mnogo više primjera.
-                Nije joj dovoljno vidjeti desetak ili dvadesetak automobila, već
-                stotine tisuća, pa čak i na milijune primjera. Upravo zato
-                treniranje umjetne inteligencije može biti skupo i zahtijeva
-                znatne računalne resurse — čak i kada je riječ o jednostavnom
-                zadatku poput klasifikacije slika.
+                AI-u treba puno više primjera nego ljudima. Umjesto desetaka,
+                često treba stotine tisuća ili milijune primjera da bi naučio
+                stabilno prepoznavati slike.
               </p>
-              <br />
-              <p>
-                Pazi ovo! Moderni AI modeli mogu uspješno klasificirati slike i
-                do <b>99%</b> točnosti - često puno bolje i od prosječne osobe!
+              <p class="mt-2">
+                Zato treniranje može biti skupo, ali moderni modeli danas
+                postižu i do <b>99%</b> točnosti.
               </p>
             </div>
             <button
@@ -278,7 +272,14 @@ onBeforeUnmount(() => {
                 class="cursor-pointer flex-1 rounded-2xl bg-[#50d2fe] px-5 py-3 font-title text-base font-bold uppercase tracking-[0.12em] text-slate-950 transition hover:-translate-y-0.5 hover:bg-cyan-200 disabled:cursor-not-allowed disabled:opacity-75"
                 :disabled="outroEmailStatus === 'saving'"
                 @click="emit('submit-outro-email')">
-                Zanima me više!
+                <span
+                  v-if="outroEmailStatus === 'saving'"
+                  class="inline-flex items-center gap-2">
+                  <span
+                    class="h-4 w-4 animate-spin rounded-full border-2 border-slate-900/30 border-t-slate-900" />
+                  Šaljem...
+                </span>
+                <span v-else>Zanima me više!</span>
               </button>
               <button
                 type="button"

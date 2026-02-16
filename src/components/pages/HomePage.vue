@@ -1,4 +1,6 @@
 <script setup>
+import { Icon } from "@iconify/vue";
+
 defineProps({
   gameTypes: { type: Array, required: true },
   gameCardGifs: { type: Object, required: true },
@@ -12,6 +14,7 @@ const emit = defineEmits([
   "select-difficulty",
   "start-selected-game",
   "open-leaderboard",
+  "open-fipu-info",
 ]);
 </script>
 
@@ -20,13 +23,19 @@ const emit = defineEmits([
     <article
       class="rounded-3xl border border-cyan-200/70 bg-white/90 p-5 shadow-[0_18px_50px_rgba(80,210,254,0.18)] backdrop-blur md:p-6">
       <div class="mb-5 rounded-2xl border border-cyan-200/70 bg-cyan-50/70 p-4">
-        <h2 class="font-title text-3xl font-bold text-cyan-900 md:text-4xl">
+        <h2 class="font-title text-3xl font-bold text-[#50d2fe] md:text-4xl">
           Bok!
         </h2>
         <p class="mt-2 text-sm leading-relaxed text-slate-800 md:text-base">
           Hvala ti što si skenirao ovaj QR kod. Želimo ti predstaviti
-          <b>Fakultet informatike u Puli</b> — tko smo, čime se bavimo i što
-          možeš očekivati tijekom studija.
+          <a
+            href="https://fipu.unipu.hr/"
+            target="_blank"
+            rel="noopener noreferrer"
+            class="font-semibold text-[#50d2fe] hover:text-cyan-300">
+            Fakultet informatike u Puli
+          </a>
+          — tko smo, čime se bavimo i što možeš očekivati tijekom studija.
         </p>
         <p class="mt-3 text-sm leading-relaxed text-slate-800 md:text-base">
           Smatramo da je interaktivni pristup, posebno kroz igru, najbolji
@@ -35,15 +44,40 @@ const emit = defineEmits([
           umjetnoj inteligenciji i IT-u općenito. Osim toga, čeka te i kviz
           kojim možeš provjeriti svoje opće IT znanje.
         </p>
-        <p class="mt-3 text-sm leading-relaxed text-slate-800 md:text-base">
-          To nije sve! Ako uspješno prijeđeš <b>Hard razinu</b> "Treniranje AI"
-          s barem <b>80% točnosti</b>, ili kviz s barem
-          <b>7 od 10 točnih odgovora</b>, javi nam se i dobit ćeš poklončić!
-        </p>
+        <div class="mt-3 rounded-xl border border-cyan-200/70 bg-white/70 p-3">
+          <p
+            class="text-center text-sm leading-relaxed text-slate-800 md:text-base mb-4">
+            To nije sve. Ako ostvariš jedan od sljedećih rezultata, čeka te mala
+            nagrada na našem štandu!
+          </p>
+          <div class="mt-2 space-y-2">
+            <p
+              class="flex items-start gap-2 text-sm leading-relaxed text-slate-800 md:text-base">
+              <Icon
+                icon="mdi:gift-outline"
+                class="mt-0.5 h-5 w-5 shrink-0 text-[#50d2fe]" />
+              <span>
+                Uspješno prijeđi Hard razinu "Treniranje AI" s barem 80%
+                točnosti.
+              </span>
+            </p>
+            <p
+              class="text-center text-sm font-semibold uppercase text-slate-900">
+              ili
+            </p>
+            <p
+              class="flex items-start gap-2 text-sm leading-relaxed text-slate-800 md:text-base">
+              <Icon
+                icon="mdi:gift-outline"
+                class="mt-0.5 h-5 w-5 shrink-0 text-[#50d2fe]" />
+              <span> Riješi kviz s barem 7 od 10 točnih odgovora. </span>
+            </p>
+          </div>
+        </div>
       </div>
 
       <p
-        class="inline-flex items-center rounded-full bg-cyan-100 px-3 py-1 text-xs font-semibold uppercase tracking-[0.2em] text-cyan-800">
+        class="inline-flex items-center rounded-full bg-cyan-100 px-3 py-1 text-xs font-semibold uppercase tracking-[0.2em] text-[#50d2fe]">
         Odaberi igru i saznaj više o FIPU
       </p>
 
@@ -61,7 +95,7 @@ const emit = defineEmits([
           @click="emit('select-game-type', game.id)">
           <div class="flex items-center justify-between gap-3">
             <div class="min-w-0 flex-1">
-              <p class="font-title text-lg font-bold text-cyan-900">
+              <p class="font-title text-lg font-bold text-[#50d2fe]">
                 {{ game.title }}
               </p>
               <p class="mt-1 text-sm text-slate-700">{{ game.description }}</p>
@@ -108,9 +142,20 @@ const emit = defineEmits([
 
       <button
         type="button"
-        class="cursor-pointer mt-3 mb-5 w-full rounded-2xl border border-cyan-500 bg-white px-5 py-3 text-center font-title text-base font-bold uppercase tracking-[0.12em] text-cyan-900 transition hover:bg-cyan-50"
+        class="cursor-pointer mt-3 mb-5 w-full rounded-2xl border border-cyan-500 bg-white px-5 py-3 text-center font-title text-base font-bold uppercase tracking-[0.12em] text-[#50d2fe] transition hover:bg-cyan-50"
         @click="emit('open-leaderboard')">
         Rang-lista
+      </button>
+
+      <p class="mb-3 text-center text-sm font-semibold uppercase text-slate-900">
+        ILI
+      </p>
+
+      <button
+        type="button"
+        class="cursor-pointer mt-2 w-full rounded-2xl border border-[#50d2fe] bg-[#50d2fe]/10 px-5 py-3 text-center font-title text-base font-bold uppercase tracking-[0.08em] text-[#50d2fe] transition hover:bg-[#50d2fe]/20"
+        @click="emit('open-fipu-info')">
+        Saznaj više o FIPU
       </button>
     </article>
   </section>

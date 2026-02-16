@@ -10,7 +10,7 @@ defineProps({
   isLocked: { type: Boolean, required: true },
 });
 
-const emit = defineEmits(["select-option", "next-question", "request-cancel"]);
+const emit = defineEmits(["select-option", "dont-know", "request-cancel"]);
 </script>
 
 <template>
@@ -67,9 +67,9 @@ const emit = defineEmits(["select-option", "next-question", "request-cancel"]);
       <button
         type="button"
         class="cursor-pointer mt-5 w-full rounded-2xl bg-[#50d2fe] px-5 py-3 text-center font-title text-base font-bold uppercase tracking-[0.12em] text-slate-950 transition hover:-translate-y-0.5 hover:bg-cyan-200 disabled:cursor-not-allowed disabled:opacity-70 disabled:hover:translate-y-0"
-        :disabled="!selectedOption || isLocked"
-        @click="emit('next-question')">
-        Dalje
+        :disabled="Boolean(selectedOption) || isLocked"
+        @click="emit('dont-know')">
+        Ne znam
       </button>
 
       <button
