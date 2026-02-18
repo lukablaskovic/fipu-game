@@ -33,7 +33,7 @@ const gameTypes = [
     id: "quiz",
     title: "Kviz znanja",
     description:
-      "Riješi brzi kviz i provjeri svoje opće znanje iz informatike.",
+      "Riješi brzi kviz i provjeri svoje opće znanje iz informatike. Nije težak - obećavamo!",
   },
 ];
 
@@ -67,6 +67,7 @@ const aiConfigs = {
 };
 const aiQuizSampleSize = 20;
 const QUIZ_SESSION_DURATION_MS = 60000;
+const QUIZ_QUESTION_COUNT = 10;
 
 const NICKNAME_STORAGE_KEY = "fipu-nickname";
 const route = useRoute();
@@ -148,6 +149,7 @@ const quizTimeLeftMs = ref(QUIZ_SESSION_DURATION_MS);
 const isQuizCancelModalOpen = ref(false);
 const quizStartMs = ref(0);
 const isQuizScoreSaved = ref(false);
+const selectedQuizQuestions = ref([]);
 
 const activeAiConfig = computed(() => aiConfigs[activeDifficulty.value]);
 const selectedAiConfig = computed(() => aiConfigs[selectedDifficulty.value]);
@@ -217,9 +219,12 @@ const revealedNameClass = computed(() => {
 
   return "text-[clamp(1.3rem,6.2vw,2.15rem)] tracking-[0.08em]";
 });
-const totalQuizQuestions = computed(() => quizQuestions.length);
+const totalQuizQuestions = computed(() => selectedQuizQuestions.value.length);
 const currentQuizQuestion = computed(
-  () => quizQuestions[quizQuestionIndex.value] ?? quizQuestions[0],
+  () =>
+    selectedQuizQuestions.value[quizQuestionIndex.value] ??
+    selectedQuizQuestions.value[0] ??
+    quizQuestions[0],
 );
 const quizSecondsLeft = computed(() =>
   Math.max(0, Math.ceil(quizTimeLeftMs.value / 1000)),
@@ -891,11 +896,19 @@ const startSelectedGame = () => {
   isNicknameModalOpen.value = true;
 };
 
+const prepareQuizQuestions = () => {
+  selectedQuizQuestions.value = shuffle(quizQuestions).slice(
+    0,
+    Math.min(QUIZ_QUESTION_COUNT, quizQuestions.length),
+  );
+};
+
 const resetQuizSession = () => {
   window.clearInterval(sessionTickId);
   window.clearTimeout(sessionTimeoutId);
   sessionTickId = 0;
   sessionTimeoutId = 0;
+  prepareQuizQuestions();
   quizQuestionIndex.value = 0;
   quizScore.value = 0;
   selectedQuizOption.value = "";
@@ -925,7 +938,7 @@ const nextQuizQuestion = () => {
   window.clearTimeout(quizAutoAdvanceTimeoutId);
   quizAutoAdvanceTimeoutId = 0;
 
-  if (quizQuestionIndex.value >= quizQuestions.length - 1) {
+  if (quizQuestionIndex.value >= totalQuizQuestions.value - 1) {
     void finishQuizGame();
     return;
   }
