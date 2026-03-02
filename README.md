@@ -9,15 +9,6 @@ Stack:
 - Firebase Hosting
 - Optional Firebase Cloud Functions score submission
 
-## Game Loop
-
-1. Player starts from QR link.
-2. An image flash appears (cat, car, tree, etc.).
-3. Player taps the correct label before the timer expires.
-4. Over 18 fast rounds, correct taps increase model accuracy.
-5. Final line: `Your data trained the AI to X%. Imagine building real AI here.`
-6. Accuracy score is stored in leaderboard.
-
 ## Local Development
 
 1. Install dependencies:
